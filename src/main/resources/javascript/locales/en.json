@@ -1,0 +1,13 @@
+{
+    "label": {
+        "settings": {
+            "title": "sample setting"
+        },
+        "action": {
+            "title": "sample - How to extend the ui ?"
+        },
+        "appsAccordion": {
+            "title": "sample"
+        }
+    }
+}

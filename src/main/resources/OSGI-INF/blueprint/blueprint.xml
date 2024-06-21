@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<blueprint xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns="http://www.osgi.org/xmlns/blueprint/v1.0.0"
+           xsi:schemaLocation="http://www.osgi.org/xmlns/blueprint/v1.0.0 http://www.osgi.org/xmlns/blueprint/v1.0.0/blueprint.xsd">
+
+<!--    <bean id="clamavService" class="org.jahia.community.clamav.service.impl.ClamavServiceImpl"/>
+    <service id="mysqlDS" interface="org.jahia.community.clamav.service.ClamavService" ref="clamavService"/>
+
+    
+    <bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver"/> 
+    <bean id="clamavFilter" class="org.jahia.community.clamav.filters.ClamavFilter">
+        <property name="urlPatterns" value="/*"/>
+        <property name="multipartResolver" ref="multipartResolver" />
+        <property name="clamavService" ref="clamavService" />
+    </bean>    -->
+    
+    
+    
+<!--        <bean id="settingsService" class="org.jahia.modules.jahiaauth.impl.SettingsServiceImpl" factory-method="getInstance">
+        <property name="configurationAdmin" ref="configurationAdmin"/>
+    </bean>
+
+    <service ref="settingsService">
+        <interfaces>
+            <value>org.jahia.modules.jahiaauth.service.SettingsService</value>
+            <value>org.osgi.service.cm.ManagedServiceFactory</value>
+        </interfaces>
+        <service-properties>
+            <entry key="service.pid" value="org.jahia.modules.auth"/>
+        </service-properties>
+    </service>-->
+</blueprint>
+
