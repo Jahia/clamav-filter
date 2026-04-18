@@ -16,6 +16,17 @@
     "testConnection": "Test connection",
     "testing": "Testing\u2026",
     "pingSuccess": "Connection to the ClamAV daemon is successful.",
-    "pingError": "Could not reach the ClamAV daemon. Check that the host and port are correct and that ClamAV is running."
+    "pingError": "Could not reach the ClamAV daemon. Check that the host and port are correct and that ClamAV is running.",
+    "scanTitle": "File Scan Test",
+    "scanDescription": "Upload a file to test whether it would be accepted or rejected by the ClamAV daemon.",
+    "chooseFile": "Choose file",
+    "scanFile": "Scan file",
+    "scanning": "Scanning\u2026",
+    "scanResultPassed": "File passed the scan \u2014 no threats detected.",
+    "scanResultFailed": "File was rejected \u2014 threat detected: {{signature}}.",
+    "scanResultError": "An error occurred while scanning the file.",
+    "scanResultConnectionFailed": "Could not reach the ClamAV daemon to perform the scan.",
+    "scanResultSizeError": "File exceeds the 10 MB size limit for test scans.",
+    "scanDaemonUnavailable": "ClamAV daemon is not reachable. File scan is unavailable."
   }
 }

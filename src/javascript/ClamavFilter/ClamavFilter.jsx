@@ -1,14 +1,26 @@
-import React, {useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {useLazyQuery, useMutation, useQuery} from '@apollo/client';
 import {useTranslation} from 'react-i18next';
 import {Button, Loader, Typography} from '@jahia/moonstone';
 import styles from './ClamavFilter.scss';
-import {GET_SETTINGS, PING, SAVE_SETTINGS} from './ClamavFilter.gql';
+import {GET_SETTINGS, PING, SAVE_SETTINGS, SCAN_TEST} from './ClamavFilter.gql';
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+
+const SCAN_LABELS = {
+    PASSED: 'label.scanResultPassed',
+    FAILED: 'label.scanResultFailed',
+    ERROR: 'label.scanResultError',
+    CONNECTION_FAILED: 'label.scanResultConnectionFailed',
+    SIZE_ERROR: 'label.scanResultSizeError'
+};
 
 export const ClamavFilterAdmin = () => {
     const {t} = useTranslation('clamav-filter');
     const [saveStatus, setSaveStatus] = useState(null);
     const [pingStatus, setPingStatus] = useState(null);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [scanResult, setScanResult] = useState(null);
 
     const [formState, setFormState] = useState({
         host: 'localhost',
@@ -34,6 +46,15 @@ export const ClamavFilterAdmin = () => {
 
     const [saveSettings, {loading: saving}] = useMutation(SAVE_SETTINGS);
     const [runPing, {loading: pinging}] = useLazyQuery(PING, {fetchPolicy: 'network-only'});
+    const [runScan, {loading: scanning}] = useLazyQuery(SCAN_TEST, {fetchPolicy: 'network-only'});
+
+    useEffect(() => {
+        runPing().then(result => {
+            setPingStatus(result.data?.clamavPing ? 'success' : 'error');
+        }).catch(() => setPingStatus('error'));
+    }, [runPing]);
+
+    const scanDisabled = pinging || pingStatus !== 'success';
 
     const handleSave = async () => {
         setSaveStatus(null);
@@ -67,6 +88,36 @@ export const ClamavFilterAdmin = () => {
             console.error('Ping failed:', err);
             setPingStatus('error');
         }
+    };
+
+    const handleFileChange = e => {
+        setSelectedFile(e.target.files[0] || null);
+        setScanResult(null);
+    };
+
+    const handleScan = () => {
+        if (!selectedFile) {
+            return;
+        }
+
+        if (selectedFile.size > MAX_FILE_SIZE) {
+            setScanResult({status: 'SIZE_ERROR', signature: null});
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async () => {
+            const base64 = reader.result.split(',')[1];
+            try {
+                const result = await runScan({variables: {content: base64}});
+                setScanResult(result.data?.clamavScanTest ?? {status: 'ERROR', signature: null});
+            } catch (err) {
+                console.error('Scan failed:', err);
+                setScanResult({status: 'ERROR', signature: null});
+            }
+        };
+
+        reader.readAsDataURL(selectedFile);
     };
 
     if (loading) {
@@ -194,6 +245,43 @@ export const ClamavFilterAdmin = () => {
                     onClick={handlePing}
                 >
                     {pinging ? t('label.testing') : t('label.testConnection')}
+                </button>
+            </div>
+
+            <div className={`${styles.cf_scanSection}${scanDisabled ? ` ${styles['cf_scanSection--disabled']}` : ''}`}>
+                <h3 className={styles.cf_sectionTitle}>{t('label.scanTitle')}</h3>
+                <Typography>{t('label.scanDescription')}</Typography>
+                {!pinging && pingStatus === 'error' && (
+                    <div className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
+                        {t('label.scanDaemonUnavailable')}
+                    </div>
+                )}
+                <div className={styles.cf_scanRow}>
+                    <label className={styles.cf_fileLabel} htmlFor="cf-scan-file">
+                        {t('label.chooseFile')}
+                    </label>
+                    <input
+                        type="file"
+                        id="cf-scan-file"
+                        className={styles.cf_fileInput}
+                        onChange={handleFileChange}
+                    />
+                    {selectedFile && (
+                        <span className={styles.cf_fileName}>{selectedFile.name}</span>
+                    )}
+                </div>
+                {scanResult && (
+                    <div className={`${styles.cf_alert} ${scanResult.status === 'PASSED' ? styles['cf_alert--success'] : styles['cf_alert--error']}`}>
+                        {t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'})}
+                    </div>
+                )}
+                <button
+                    type="button"
+                    className={styles.cf_pingBtn}
+                    disabled={!selectedFile || scanning || scanDisabled}
+                    onClick={handleScan}
+                >
+                    {scanning ? t('label.scanning') : t('label.scanFile')}
                 </button>
             </div>
         </div>

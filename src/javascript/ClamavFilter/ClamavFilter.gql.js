@@ -22,3 +22,12 @@ export const PING = gql`
         clamavPing
     }
 `;
+
+export const SCAN_TEST = gql`
+    query ClamavScanTest($content: String!) {
+        clamavScanTest(content: $content) {
+            status
+            signature
+        }
+    }
+`;

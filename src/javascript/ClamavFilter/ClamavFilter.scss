@@ -116,6 +116,65 @@
     }
 }
 
+.cf_scanSection {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+    padding-top: 24px;
+    border-top: 1px solid #e0e0e0;
+
+    &--disabled {
+        .cf_scanRow,
+        .cf_pingBtn {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+    }
+}
+
+.cf_sectionTitle {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0;
+}
+
+.cf_scanRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.cf_fileLabel {
+    display: inline-block;
+    padding: 7px 14px;
+    background-color: #fff;
+    border: 1px solid #0077cc;
+    border-radius: 4px;
+    color: #0077cc;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+
+    &:hover {
+        background-color: #e8f2fb;
+    }
+}
+
+.cf_fileInput {
+    display: none;
+}
+
+.cf_fileName {
+    font-size: 14px;
+    color: #555;
+    max-width: 280px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .cf_alert {
     padding: 10px 14px;
     border-radius: 4px;
