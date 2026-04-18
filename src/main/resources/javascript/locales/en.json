@@ -1,13 +1,21 @@
 {
-    "label": {
-        "settings": {
-            "title": "sample setting"
-        },
-        "action": {
-            "title": "sample - How to extend the ui ?"
-        },
-        "appsAccordion": {
-            "title": "sample"
-        }
-    }
+  "label": {
+    "menu_entry": "ClamAV Filter",
+    "title": "ClamAV Antivirus Settings",
+    "description": "Configure the connection to the ClamAV antivirus daemon used to scan uploaded files for malware.",
+    "host": "ClamAV Host",
+    "port": "Port",
+    "connectionTimeout": "Connection Timeout (ms)",
+    "readTimeout": "Read Timeout (ms)",
+    "connectionTimeoutTooltip": "Maximum time in milliseconds to wait when connecting to the ClamAV daemon. Default: 2000.",
+    "readTimeoutTooltip": "Maximum time in milliseconds to wait for the scan response. Increase for large files. Default: 20000.",
+    "save": "Save settings",
+    "saveSuccess": "Settings saved successfully.",
+    "saveError": "An error occurred while saving the settings.",
+    "pingDescription": "Test the connection to the ClamAV daemon using the configured host and port.",
+    "testConnection": "Test connection",
+    "testing": "Testing\u2026",
+    "pingSuccess": "Connection to the ClamAV daemon is successful.",
+    "pingError": "Could not reach the ClamAV daemon. Check that the host and port are correct and that ClamAV is running."
+  }
 }

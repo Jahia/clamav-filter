@@ -29,8 +29,6 @@ public class ClamavServiceImpl implements ClamavService {
     private static final String RESPONSE_OK = "stream: OK";
     private static final String STREAM_PREFIX = "stream:";
     private static final int CHUNK_SIZE = 2048;
-    private static final int CONNECTION_TIMEOUT = 2000;
-    private static final int READ_TIMEOUT = 20000;
     private ClamavConfig clamavConfig;
 
     @Reference
@@ -52,8 +50,8 @@ public class ClamavServiceImpl implements ClamavService {
     public Result scan(final InputStream inputStream) {
 
         try ( Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), CONNECTION_TIMEOUT);
-            socket.setSoTimeout(READ_TIMEOUT);
+            socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), clamavConfig.getConnectionTimeout());
+            socket.setSoTimeout(clamavConfig.getReadTimeout());
 
             try ( OutputStream outStream = new BufferedOutputStream(socket.getOutputStream())) {
                 outStream.write("zINSTREAM\0".getBytes(StandardCharsets.UTF_8));
@@ -92,8 +90,8 @@ public class ClamavServiceImpl implements ClamavService {
         String response = "";
 
         try ( Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), CONNECTION_TIMEOUT);
-            socket.setSoTimeout(READ_TIMEOUT);
+            socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), clamavConfig.getConnectionTimeout());
+            socket.setSoTimeout(clamavConfig.getReadTimeout());
 
             try ( DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
                 dos.write(cmd);
