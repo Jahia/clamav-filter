@@ -1,0 +1,8 @@
+mutation saveSettings($host: String!, $port: Int!, $connectionTimeout: Int, $readTimeout: Int) {
+    clamavSaveSettings(
+        host: $host
+        port: $port
+        connectionTimeout: $connectionTimeout
+        readTimeout: $readTimeout
+    )
+}

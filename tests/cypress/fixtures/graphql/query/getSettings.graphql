@@ -1,0 +1,8 @@
+query {
+    clamavSettings {
+        host
+        port
+        connectionTimeout
+        readTimeout
+    }
+}
