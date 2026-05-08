@@ -65,7 +65,7 @@
   "author": "",
   "license": "MIT",
   "resolutions": {
-    "axios": "^1.15.0",
+    "axios": "^1.16.0",
     "serialize-javascript": "^7.0.5"
   }
 }
