@@ -6,6 +6,7 @@
     "loading": "Loading, please wait.",
     "connectionSettings": "ClamAV Connection Settings",
     "host": "ClamAV Host",
+    "hostHint": "Enter the hostname or IP address of the ClamAV daemon.",
     "port": "Port",
     "portHint": "Enter a port number between 1 and 65535.",
     "connectionTimeout": "Connection Timeout (ms)",
@@ -31,6 +32,7 @@
     "scanResultError": "An error occurred while scanning the file.",
     "scanResultConnectionFailed": "Could not reach the ClamAV daemon to perform the scan.",
     "scanResultSizeError": "File exceeds the 10 MB size limit for test scans.",
-    "scanDaemonUnavailable": "ClamAV daemon is not reachable. File scan is unavailable."
+    "scanDaemonUnavailable": "ClamAV daemon is not reachable. File scan is unavailable.",
+    "scanDisabledReason": "File scan is unavailable because the ClamAV daemon is not reachable. Test the connection first."
   }
 }

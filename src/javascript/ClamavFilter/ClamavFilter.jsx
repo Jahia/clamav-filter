@@ -22,11 +22,9 @@ export const ClamavFilterAdmin = () => {
     const [selectedFile, setSelectedFile] = useState(null);
     const [scanResult, setScanResult] = useState(null);
     const fileInputRef = useRef(null);
-    const saveLiveRef = useRef(null);
-    const scanResultRef = useRef(null);
 
     useEffect(() => {
-        document.title = `${t('label.title')} — Jahia Administration`;
+        document.title = `${t('label.title')} - Jahia Administration`;
     }, [t]);
 
     const [formState, setFormState] = useState({
@@ -85,7 +83,6 @@ export const ClamavFilterAdmin = () => {
             setSaveStatus('error');
         }
 
-        setTimeout(() => saveLiveRef.current?.focus(), 50);
     };
 
     const handlePing = async () => {
@@ -111,7 +108,6 @@ export const ClamavFilterAdmin = () => {
 
         if (selectedFile.size > MAX_FILE_SIZE) {
             setScanResult({status: 'SIZE_ERROR', signature: null});
-            setTimeout(() => scanResultRef.current?.focus(), 50);
             return;
         }
 
@@ -125,8 +121,6 @@ export const ClamavFilterAdmin = () => {
                 console.error('Scan failed:', err);
                 setScanResult({status: 'ERROR', signature: null});
             }
-
-            setTimeout(() => scanResultRef.current?.focus(), 50);
         };
 
         reader.readAsDataURL(selectedFile);
@@ -141,43 +135,28 @@ export const ClamavFilterAdmin = () => {
         );
     }
 
-    const saveLiveMsg = saveStatus === 'success' ? t('label.saveSuccess') :
-        saveStatus === 'error' ? t('label.saveError') : '';
-    const pingLiveMsg = pingStatus === 'success' ? t('label.pingSuccess') :
-        pingStatus === 'error' ? t('label.pingError') : '';
-    const scanLiveMsg = scanResult ?
-        t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'}) : '';
-
     return (
         <div className={styles.cf_container}>
-            {/* Persistent live regions — always in DOM so AT registers them before status changes */}
-            <div
-                ref={saveLiveRef}
-                tabIndex={-1}
-                role={saveStatus === 'error' ? 'alert' : 'status'}
-                aria-live={saveStatus === 'error' ? 'assertive' : 'polite'}
-                aria-atomic="true"
-                className={styles.cf_sr_only}
-            >
-                {saveLiveMsg}
+            {/* Fixed alert + status live regions — always in DOM so AT subscriptions stay stable */}
+            <div role="alert" aria-live="assertive" aria-atomic="true" className={styles.cf_sr_only}>
+                {saveStatus === 'error' ? t('label.saveError') : ''}
             </div>
-            <div
-                role={pingStatus === 'error' ? 'alert' : 'status'}
-                aria-live={pingStatus === 'error' ? 'assertive' : 'polite'}
-                aria-atomic="true"
-                className={styles.cf_sr_only}
-            >
-                {pingLiveMsg}
+            <div role="status" aria-live="polite" aria-atomic="true" className={styles.cf_sr_only}>
+                {saveStatus === 'success' ? t('label.saveSuccess') : ''}
             </div>
-            <div
-                ref={scanResultRef}
-                tabIndex={-1}
-                role={scanResult && scanResult.status !== 'PASSED' ? 'alert' : 'status'}
-                aria-live={scanResult && scanResult.status !== 'PASSED' ? 'assertive' : 'polite'}
-                aria-atomic="true"
-                className={styles.cf_sr_only}
-            >
-                {scanLiveMsg}
+            <div role="alert" aria-live="assertive" aria-atomic="true" className={styles.cf_sr_only}>
+                {pingStatus === 'error' ? t('label.pingError') : ''}
+            </div>
+            <div role="status" aria-live="polite" aria-atomic="true" className={styles.cf_sr_only}>
+                {pingStatus === 'success' ? t('label.pingSuccess') : ''}
+            </div>
+            <div role="alert" aria-live="assertive" aria-atomic="true" className={styles.cf_sr_only}>
+                {scanResult && scanResult.status !== 'PASSED' ?
+                    t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'}) : ''}
+            </div>
+            <div role="status" aria-live="polite" aria-atomic="true" className={styles.cf_sr_only}>
+                {scanResult?.status === 'PASSED' ?
+                    t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'}) : ''}
             </div>
 
             <div className={styles.cf_header}>
@@ -208,8 +187,12 @@ export const ClamavFilterAdmin = () => {
                             className={styles.cf_inputWide}
                             value={formState.host}
                             autoComplete="off"
+                            aria-describedby="cf-host-hint"
                             onChange={e => setFormState(prev => ({...prev, host: e.target.value}))}
                         />
+                        <span id="cf-host-hint" className={styles.cf_fieldHint}>
+                            {t('label.hostHint')}
+                        </span>
                     </div>
 
                     <div className={styles.cf_fieldGroup}>
@@ -284,12 +267,12 @@ export const ClamavFilterAdmin = () => {
                 <div className={styles.cf_actions}>
                     {saveStatus === 'success' && (
                         <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
-                            <span className={styles.cf_alertIcon}>✓</span> {t('label.saveSuccess')}
+                            <span aria-hidden="true" className={styles.cf_alertIcon}>✓</span> {t('label.saveSuccess')}
                         </div>
                     )}
                     {saveStatus === 'error' && (
                         <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                            <span className={styles.cf_alertIcon}>✕</span> {t('label.saveError')}
+                            <span aria-hidden="true" className={styles.cf_alertIcon}>✕</span> {t('label.saveError')}
                         </div>
                     )}
                     <Button
@@ -306,12 +289,12 @@ export const ClamavFilterAdmin = () => {
                 <Typography>{t('label.pingDescription')}</Typography>
                 {pingStatus === 'success' && (
                     <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
-                        <span className={styles.cf_alertIcon}>✓</span> {t('label.pingSuccess')}
+                        <span aria-hidden="true" className={styles.cf_alertIcon}>✓</span> {t('label.pingSuccess')}
                     </div>
                 )}
                 {pingStatus === 'error' && (
                     <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                        <span className={styles.cf_alertIcon}>✕</span> {t('label.pingError')}
+                        <span aria-hidden="true" className={styles.cf_alertIcon}>✕</span> {t('label.pingError')}
                     </div>
                 )}
                 <button
@@ -325,12 +308,20 @@ export const ClamavFilterAdmin = () => {
                 </button>
             </div>
 
-            <div className={`${styles.cf_scanSection}${scanDisabled ? ` ${styles['cf_scanSection--disabled']}` : ''}`}>
+            <div
+                className={`${styles.cf_scanSection}${scanDisabled ? ` ${styles['cf_scanSection--disabled']}` : ''}`}
+                aria-describedby={scanDisabled ? 'cf-scan-disabled-reason' : undefined}
+            >
+                {scanDisabled && (
+                    <span id="cf-scan-disabled-reason" className={styles.cf_sr_only}>
+                        {t('label.scanDisabledReason')}
+                    </span>
+                )}
                 <h3 className={styles.cf_sectionTitle}>{t('label.scanTitle')}</h3>
                 <Typography>{t('label.scanDescription')}</Typography>
                 {!pinging && pingStatus === 'error' && (
                     <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                        <span className={styles.cf_alertIcon}>✕</span> {t('label.scanDaemonUnavailable')}
+                        <span aria-hidden="true" className={styles.cf_alertIcon}>✕</span> {t('label.scanDaemonUnavailable')}
                     </div>
                 )}
                 <div className={styles.cf_scanRow}>
@@ -352,16 +343,16 @@ export const ClamavFilterAdmin = () => {
                         tabIndex={-1}
                         onChange={handleFileChange}
                     />
-                    {selectedFile && (
-                        <span className={styles.cf_fileName}>{selectedFile.name}</span>
-                    )}
+                    <span aria-live="polite" aria-atomic="true" className={styles.cf_fileName}>
+                        {selectedFile?.name || ''}
+                    </span>
                 </div>
                 {scanResult && (
                     <div
                         aria-hidden="true"
                         className={`${styles.cf_alert} ${scanResult.status === 'PASSED' ? styles['cf_alert--success'] : styles['cf_alert--error']}`}
                     >
-                        <span className={styles.cf_alertIcon}>{scanResult.status === 'PASSED' ? '✓' : '✕'}</span>{' '}
+                        <span aria-hidden="true" className={styles.cf_alertIcon}>{scanResult.status === 'PASSED' ? '✓' : '✕'}</span>{' '}
                         {t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'})}
                     </div>
                 )}

@@ -78,8 +78,8 @@
 }
 
 .cf_tooltip {
-    /* #767676 on white = 4.54:1 — replaces #999 which was 2.85:1 (fails at 14px) */
-    color: #767676;
+    /* #6b6b6b on white ≈ 4.7:1 — increased headroom over #767676 (4.54:1) */
+    color: #6b6b6b;
     font-size: 0.875rem;
 }
 
@@ -257,12 +257,14 @@
     &--success {
         background-color: #e8f5e9;
         border: 1px solid #a5d6a7;
+        border-left: 4px solid #2e7d32;
         color: #2e7d32;
     }
 
     &--error {
         background-color: #fdecea;
         border: 1px solid #ef9a9a;
+        border-left: 4px solid #c62828;
         color: #c62828;
     }
 }
