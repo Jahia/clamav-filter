@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {useLazyQuery, useMutation, useQuery} from '@apollo/client';
 import {useTranslation} from 'react-i18next';
 import {Button, Loader, Typography} from '@jahia/moonstone';
@@ -21,6 +21,13 @@ export const ClamavFilterAdmin = () => {
     const [pingStatus, setPingStatus] = useState(null);
     const [selectedFile, setSelectedFile] = useState(null);
     const [scanResult, setScanResult] = useState(null);
+    const fileInputRef = useRef(null);
+    const saveLiveRef = useRef(null);
+    const scanResultRef = useRef(null);
+
+    useEffect(() => {
+        document.title = `${t('label.title')} — Jahia Administration`;
+    }, [t]);
 
     const [formState, setFormState] = useState({
         host: 'localhost',
@@ -77,6 +84,8 @@ export const ClamavFilterAdmin = () => {
             console.error('Failed to save settings:', err);
             setSaveStatus('error');
         }
+
+        setTimeout(() => saveLiveRef.current?.focus(), 50);
     };
 
     const handlePing = async () => {
@@ -102,6 +111,7 @@ export const ClamavFilterAdmin = () => {
 
         if (selectedFile.size > MAX_FILE_SIZE) {
             setScanResult({status: 'SIZE_ERROR', signature: null});
+            setTimeout(() => scanResultRef.current?.focus(), 50);
             return;
         }
 
@@ -115,6 +125,8 @@ export const ClamavFilterAdmin = () => {
                 console.error('Scan failed:', err);
                 setScanResult({status: 'ERROR', signature: null});
             }
+
+            setTimeout(() => scanResultRef.current?.focus(), 50);
         };
 
         reader.readAsDataURL(selectedFile);
@@ -122,14 +134,52 @@ export const ClamavFilterAdmin = () => {
 
     if (loading) {
         return (
-            <div className={styles.cf_loading}>
+            <div className={styles.cf_loading} role="status">
+                <span className={styles.cf_sr_only}>{t('label.loading')}</span>
                 <Loader size="big"/>
             </div>
         );
     }
 
+    const saveLiveMsg = saveStatus === 'success' ? t('label.saveSuccess') :
+        saveStatus === 'error' ? t('label.saveError') : '';
+    const pingLiveMsg = pingStatus === 'success' ? t('label.pingSuccess') :
+        pingStatus === 'error' ? t('label.pingError') : '';
+    const scanLiveMsg = scanResult ?
+        t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'}) : '';
+
     return (
         <div className={styles.cf_container}>
+            {/* Persistent live regions — always in DOM so AT registers them before status changes */}
+            <div
+                ref={saveLiveRef}
+                tabIndex={-1}
+                role={saveStatus === 'error' ? 'alert' : 'status'}
+                aria-live={saveStatus === 'error' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+                className={styles.cf_sr_only}
+            >
+                {saveLiveMsg}
+            </div>
+            <div
+                role={pingStatus === 'error' ? 'alert' : 'status'}
+                aria-live={pingStatus === 'error' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+                className={styles.cf_sr_only}
+            >
+                {pingLiveMsg}
+            </div>
+            <div
+                ref={scanResultRef}
+                tabIndex={-1}
+                role={scanResult && scanResult.status !== 'PASSED' ? 'alert' : 'status'}
+                aria-live={scanResult && scanResult.status !== 'PASSED' ? 'assertive' : 'polite'}
+                aria-atomic="true"
+                className={styles.cf_sr_only}
+            >
+                {scanLiveMsg}
+            </div>
+
             <div className={styles.cf_header}>
                 <h2>{t('label.title')}</h2>
             </div>
@@ -138,110 +188,137 @@ export const ClamavFilterAdmin = () => {
                 <Typography>{t('label.description')}</Typography>
             </div>
 
-            <div className={styles.cf_form}>
-                <div className={styles.cf_fieldGroup}>
-                    <label className={styles.cf_label} htmlFor="cf-host">
-                        {t('label.host')}
-                    </label>
-                    <input
-                        type="text"
-                        id="cf-host"
-                        className={styles.cf_inputWide}
-                        value={formState.host}
-                        onChange={e => setFormState(prev => ({...prev, host: e.target.value}))}
-                    />
-                </div>
+            <form
+                className={styles.cf_form}
+                onSubmit={e => {
+                    e.preventDefault();
+                    handleSave();
+                }}
+            >
+                <fieldset className={styles.cf_fieldset}>
+                    <legend className={styles.cf_fieldsetLegend}>{t('label.connectionSettings')}</legend>
 
-                <div className={styles.cf_fieldGroup}>
-                    <label className={styles.cf_label} htmlFor="cf-port">
-                        {t('label.port')}
-                    </label>
-                    <input
-                        type="number"
-                        id="cf-port"
-                        className={styles.cf_input}
-                        min="1"
-                        max="65535"
-                        value={formState.port}
-                        onChange={e => setFormState(prev => ({
-                            ...prev,
-                            port: Number.parseInt(e.target.value, 10) || 3310
-                        }))}
-                    />
-                </div>
-
-                <div className={styles.cf_fieldGroup}>
-                    <label className={styles.cf_label} htmlFor="cf-conn-timeout">
-                        {t('label.connectionTimeout')}
-                        <span className={styles.cf_tooltip} title={t('label.connectionTimeoutTooltip')}>ⓘ</span>
-                    </label>
-                    <input
-                        type="number"
-                        id="cf-conn-timeout"
-                        className={styles.cf_input}
-                        min="100"
-                        value={formState.connectionTimeout}
-                        onChange={e => setFormState(prev => ({
-                            ...prev,
-                            connectionTimeout: Number.parseInt(e.target.value, 10) || 2000
-                        }))}
-                    />
-                </div>
-
-                <div className={styles.cf_fieldGroup}>
-                    <label className={styles.cf_label} htmlFor="cf-read-timeout">
-                        {t('label.readTimeout')}
-                        <span className={styles.cf_tooltip} title={t('label.readTimeoutTooltip')}>ⓘ</span>
-                    </label>
-                    <input
-                        type="number"
-                        id="cf-read-timeout"
-                        className={styles.cf_input}
-                        min="1000"
-                        value={formState.readTimeout}
-                        onChange={e => setFormState(prev => ({
-                            ...prev,
-                            readTimeout: Number.parseInt(e.target.value, 10) || 20000
-                        }))}
-                    />
-                </div>
-            </div>
-
-            <div className={styles.cf_actions}>
-                {saveStatus === 'success' && (
-                    <div className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
-                        {t('label.saveSuccess')}
+                    <div className={styles.cf_fieldGroup}>
+                        <label className={styles.cf_label} htmlFor="cf-host">
+                            {t('label.host')}
+                        </label>
+                        <input
+                            type="text"
+                            id="cf-host"
+                            className={styles.cf_inputWide}
+                            value={formState.host}
+                            autoComplete="off"
+                            onChange={e => setFormState(prev => ({...prev, host: e.target.value}))}
+                        />
                     </div>
-                )}
-                {saveStatus === 'error' && (
-                    <div className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                        {t('label.saveError')}
+
+                    <div className={styles.cf_fieldGroup}>
+                        <label className={styles.cf_label} htmlFor="cf-port">
+                            {t('label.port')}
+                        </label>
+                        <input
+                            type="number"
+                            id="cf-port"
+                            className={styles.cf_input}
+                            min="1"
+                            max="65535"
+                            aria-describedby="cf-port-hint"
+                            value={formState.port}
+                            onChange={e => setFormState(prev => ({
+                                ...prev,
+                                port: Number.parseInt(e.target.value, 10) || 3310
+                            }))}
+                        />
+                        <span id="cf-port-hint" className={styles.cf_fieldHint}>
+                            {t('label.portHint')}
+                        </span>
                     </div>
-                )}
-                <Button
-                    label={t('label.save')}
-                    variant="primary"
-                    isDisabled={saving}
-                    onClick={handleSave}
-                />
-            </div>
+
+                    <div className={styles.cf_fieldGroup}>
+                        <label className={styles.cf_label} htmlFor="cf-conn-timeout">
+                            {t('label.connectionTimeout')}
+                            {/* aria-hidden — description provided via aria-describedby on the input */}
+                            <span aria-hidden="true" className={styles.cf_tooltip}>ⓘ</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="cf-conn-timeout"
+                            className={styles.cf_input}
+                            min="100"
+                            aria-describedby="cf-conn-timeout-hint"
+                            value={formState.connectionTimeout}
+                            onChange={e => setFormState(prev => ({
+                                ...prev,
+                                connectionTimeout: Number.parseInt(e.target.value, 10) || 2000
+                            }))}
+                        />
+                        <span id="cf-conn-timeout-hint" className={styles.cf_fieldHint}>
+                            {t('label.connectionTimeoutTooltip')}
+                        </span>
+                    </div>
+
+                    <div className={styles.cf_fieldGroup}>
+                        <label className={styles.cf_label} htmlFor="cf-read-timeout">
+                            {t('label.readTimeout')}
+                            {/* aria-hidden — description provided via aria-describedby on the input */}
+                            <span aria-hidden="true" className={styles.cf_tooltip}>ⓘ</span>
+                        </label>
+                        <input
+                            type="number"
+                            id="cf-read-timeout"
+                            className={styles.cf_input}
+                            min="1000"
+                            aria-describedby="cf-read-timeout-hint"
+                            value={formState.readTimeout}
+                            onChange={e => setFormState(prev => ({
+                                ...prev,
+                                readTimeout: Number.parseInt(e.target.value, 10) || 20000
+                            }))}
+                        />
+                        <span id="cf-read-timeout-hint" className={styles.cf_fieldHint}>
+                            {t('label.readTimeoutTooltip')}
+                        </span>
+                    </div>
+                </fieldset>
+
+                <div className={styles.cf_actions}>
+                    {saveStatus === 'success' && (
+                        <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
+                            <span className={styles.cf_alertIcon}>✓</span> {t('label.saveSuccess')}
+                        </div>
+                    )}
+                    {saveStatus === 'error' && (
+                        <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
+                            <span className={styles.cf_alertIcon}>✕</span> {t('label.saveError')}
+                        </div>
+                    )}
+                    <Button
+                        type="submit"
+                        label={t('label.save')}
+                        variant="primary"
+                        isDisabled={saving}
+                    />
+                </div>
+            </form>
 
             <div className={styles.cf_pingSection}>
+                <h3 className={styles.cf_sectionTitle}>{t('label.connectionTestTitle')}</h3>
                 <Typography>{t('label.pingDescription')}</Typography>
                 {pingStatus === 'success' && (
-                    <div className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
-                        {t('label.pingSuccess')}
+                    <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--success']}`}>
+                        <span className={styles.cf_alertIcon}>✓</span> {t('label.pingSuccess')}
                     </div>
                 )}
                 {pingStatus === 'error' && (
-                    <div className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                        {t('label.pingError')}
+                    <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
+                        <span className={styles.cf_alertIcon}>✕</span> {t('label.pingError')}
                     </div>
                 )}
                 <button
                     type="button"
                     className={styles.cf_pingBtn}
                     disabled={pinging}
+                    aria-busy={pinging}
                     onClick={handlePing}
                 >
                     {pinging ? t('label.testing') : t('label.testConnection')}
@@ -252,18 +329,27 @@ export const ClamavFilterAdmin = () => {
                 <h3 className={styles.cf_sectionTitle}>{t('label.scanTitle')}</h3>
                 <Typography>{t('label.scanDescription')}</Typography>
                 {!pinging && pingStatus === 'error' && (
-                    <div className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
-                        {t('label.scanDaemonUnavailable')}
+                    <div aria-hidden="true" className={`${styles.cf_alert} ${styles['cf_alert--error']}`}>
+                        <span className={styles.cf_alertIcon}>✕</span> {t('label.scanDaemonUnavailable')}
                     </div>
                 )}
                 <div className={styles.cf_scanRow}>
-                    <label className={styles.cf_fileLabel} htmlFor="cf-scan-file">
+                    {/* Button triggers the hidden file input; the input is aria-hidden since this button is the AT-facing control */}
+                    <button
+                        type="button"
+                        className={styles.cf_fileLabel}
+                        disabled={scanDisabled}
+                        onClick={() => fileInputRef.current?.click()}
+                    >
                         {t('label.chooseFile')}
-                    </label>
+                    </button>
                     <input
+                        ref={fileInputRef}
                         type="file"
                         id="cf-scan-file"
                         className={styles.cf_fileInput}
+                        aria-hidden="true"
+                        tabIndex={-1}
                         onChange={handleFileChange}
                     />
                     {selectedFile && (
@@ -271,7 +357,11 @@ export const ClamavFilterAdmin = () => {
                     )}
                 </div>
                 {scanResult && (
-                    <div className={`${styles.cf_alert} ${scanResult.status === 'PASSED' ? styles['cf_alert--success'] : styles['cf_alert--error']}`}>
+                    <div
+                        aria-hidden="true"
+                        className={`${styles.cf_alert} ${scanResult.status === 'PASSED' ? styles['cf_alert--success'] : styles['cf_alert--error']}`}
+                    >
+                        <span className={styles.cf_alertIcon}>{scanResult.status === 'PASSED' ? '✓' : '✕'}</span>{' '}
                         {t(SCAN_LABELS[scanResult.status], {signature: scanResult.signature || 'unknown'})}
                     </div>
                 )}
@@ -279,6 +369,7 @@ export const ClamavFilterAdmin = () => {
                     type="button"
                     className={styles.cf_pingBtn}
                     disabled={!selectedFile || scanning || scanDisabled}
+                    aria-busy={scanning}
                     onClick={handleScan}
                 >
                     {scanning ? t('label.scanning') : t('label.scanFile')}

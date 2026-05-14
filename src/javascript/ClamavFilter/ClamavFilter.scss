@@ -1,45 +1,75 @@
+.cf_sr_only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .cf_loading {
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 48px;
+    padding: 3rem;
 }
 
 .cf_container {
-    padding: 24px 32px;
+    padding: 1.5rem 2rem;
     max-width: 700px;
 }
 
 .cf_header {
-    margin-bottom: 8px;
+    margin-bottom: 0.5rem;
 
     h2 {
-        font-size: 20px;
+        font-size: 1.25rem;
         font-weight: 600;
         margin: 0;
     }
 }
 
 .cf_description {
-    margin-bottom: 24px;
+    margin-bottom: 1.5rem;
     color: #666;
 }
 
 .cf_form {
     display: flex;
     flex-direction: column;
-    gap: 20px;
-    margin-bottom: 28px;
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+}
+
+.cf_fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.cf_fieldsetLegend {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #333;
+    padding: 0;
+    margin-bottom: 0.5rem;
 }
 
 .cf_fieldGroup {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 0.375rem;
 }
 
 .cf_label {
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 500;
     color: #333;
     display: flex;
@@ -48,20 +78,29 @@
 }
 
 .cf_tooltip {
-    cursor: help;
-    color: #999;
-    font-size: 14px;
+    /* #767676 on white = 4.54:1 — replaces #999 which was 2.85:1 (fails at 14px) */
+    color: #767676;
+    font-size: 0.875rem;
+}
+
+.cf_fieldHint {
+    font-size: 0.75rem;
+    /* #5c6370 on white ≈ 5.5:1 */
+    color: #5c6370;
 }
 
 .cf_input {
     width: 160px;
     padding: 6px 10px;
-    border: 1px solid #ccc;
+    /* #767676 on white = 4.54:1 — replaces #ccc which was ~1.6:1 (fails SC 1.4.11) */
+    border: 1px solid #767676;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 0.875rem;
 
     &:focus {
-        outline: none;
+        /* 2px outline replaces outline:none — SC 2.4.7 Focus Visible */
+        outline: 2px solid #0077cc;
+        outline-offset: 2px;
         border-color: #0077cc;
     }
 }
@@ -69,12 +108,13 @@
 .cf_inputWide {
     width: 320px;
     padding: 6px 10px;
-    border: 1px solid #ccc;
+    border: 1px solid #767676;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 0.875rem;
 
     &:focus {
-        outline: none;
+        outline: 2px solid #0077cc;
+        outline-offset: 2px;
         border-color: #0077cc;
     }
 }
@@ -82,17 +122,17 @@
 .cf_actions {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75rem;
     align-items: flex-start;
-    margin-bottom: 32px;
+    margin-bottom: 2rem;
 }
 
 .cf_pingSection {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75rem;
     align-items: flex-start;
-    padding-top: 24px;
+    padding-top: 1.5rem;
     border-top: 1px solid #e0e0e0;
 }
 
@@ -102,9 +142,13 @@
     border: 1px solid #0077cc;
     border-radius: 4px;
     color: #0077cc;
-    font-size: 14px;
+    font-size: 0.875rem;
+    font-family: inherit;
     cursor: pointer;
-    transition: background-color 0.2s;
+
+    @media (prefers-reduced-motion: no-preference) {
+        transition: background-color 0.2s;
+    }
 
     &:hover:not(:disabled) {
         background-color: #e8f2fb;
@@ -114,27 +158,32 @@
         opacity: 0.5;
         cursor: not-allowed;
     }
+
+    &:focus-visible {
+        outline: 2px solid #0077cc;
+        outline-offset: 2px;
+    }
 }
 
 .cf_scanSection {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 0.75rem;
     align-items: flex-start;
-    padding-top: 24px;
+    padding-top: 1.5rem;
     border-top: 1px solid #e0e0e0;
 
     &--disabled {
+        /* Buttons in this section carry their own disabled attribute; only visual dimming needed */
         .cf_scanRow,
         .cf_pingBtn {
             opacity: 0.45;
-            pointer-events: none;
         }
     }
 }
 
 .cf_sectionTitle {
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     margin: 0;
 }
@@ -142,7 +191,7 @@
 .cf_scanRow {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 0.75rem;
     flex-wrap: wrap;
 }
 
@@ -153,21 +202,41 @@
     border: 1px solid #0077cc;
     border-radius: 4px;
     color: #0077cc;
-    font-size: 14px;
+    font-size: 0.875rem;
+    font-family: inherit;
     cursor: pointer;
-    transition: background-color 0.2s;
 
-    &:hover {
+    @media (prefers-reduced-motion: no-preference) {
+        transition: background-color 0.2s;
+    }
+
+    &:hover:not(:disabled) {
         background-color: #e8f2fb;
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    &:focus-visible {
+        outline: 2px solid #0077cc;
+        outline-offset: 2px;
     }
 }
 
 .cf_fileInput {
-    display: none;
+    /* Visually hidden but present in DOM so .click() triggers the OS file dialog */
+    position: absolute;
+    opacity: 0;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    pointer-events: none;
 }
 
 .cf_fileName {
-    font-size: 14px;
+    font-size: 0.875rem;
     color: #555;
     max-width: 280px;
     overflow: hidden;
@@ -178,9 +247,12 @@
 .cf_alert {
     padding: 10px 14px;
     border-radius: 4px;
-    font-size: 14px;
+    font-size: 0.875rem;
     width: 100%;
     box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
 
     &--success {
         background-color: #e8f5e9;
@@ -193,4 +265,9 @@
         border: 1px solid #ef9a9a;
         color: #c62828;
     }
+}
+
+.cf_alertIcon {
+    font-weight: 700;
+    flex-shrink: 0;
 }
