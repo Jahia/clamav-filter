@@ -4,19 +4,24 @@ import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import javax.servlet.ReadListener;
 import javax.servlet.ServletInputStream;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
-import org.apache.commons.io.IOUtils;
 
 public class MultiReadHttpServletRequest extends HttpServletRequestWrapper {
 
-    private ByteArrayOutputStream cachedBytes;
+    private static final int COPY_BUFFER = 8192;
 
-    public MultiReadHttpServletRequest(HttpServletRequest request) {
+    private final long maxBytes;
+    private byte[] cachedBytes;
+
+    public MultiReadHttpServletRequest(HttpServletRequest request, long maxBytes) {
         super(request);
+        this.maxBytes = maxBytes;
     }
 
     @Override
@@ -24,31 +29,49 @@ public class MultiReadHttpServletRequest extends HttpServletRequestWrapper {
         if (cachedBytes == null) {
             cacheInputStream();
         }
-
-        return new CachedServletInputStream();
+        return new CachedServletInputStream(cachedBytes);
     }
 
     @Override
     public BufferedReader getReader() throws IOException {
-        return new BufferedReader(new InputStreamReader(getInputStream()));
+        return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));
     }
 
     private void cacheInputStream() throws IOException {
-        /* Cache the inputstream in order to read it multiple times. For
-     * convenience, I use apache.commons IOUtils
-         */
-        cachedBytes = new ByteArrayOutputStream();
-        IOUtils.copy(super.getInputStream(), cachedBytes);
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final byte[] buf = new byte[COPY_BUFFER];
+        long total = 0;
+        try (InputStream in = super.getInputStream()) {
+            int read;
+            while ((read = in.read(buf)) >= 0) {
+                total += read;
+                if (maxBytes > 0 && total > maxBytes) {
+                    throw new RequestTooLargeException(maxBytes);
+                }
+                out.write(buf, 0, read);
+            }
+        }
+        cachedBytes = out.toByteArray();
     }
 
-    /* An inputstream which reads the cached request body */
-    public class CachedServletInputStream extends ServletInputStream {
+    public static final class RequestTooLargeException extends IOException {
+        private static final long serialVersionUID = 1L;
+        private final long limit;
+        RequestTooLargeException(long limit) {
+            super("Request body exceeds the configured maximum of " + limit + " bytes");
+            this.limit = limit;
+        }
+        public long getLimit() {
+            return limit;
+        }
+    }
 
-        private ByteArrayInputStream input;
+    private static final class CachedServletInputStream extends ServletInputStream {
 
-        public CachedServletInputStream() {
-            /* create a new input stream from the cached request body */
-            input = new ByteArrayInputStream(cachedBytes.toByteArray());
+        private final ByteArrayInputStream input;
+
+        CachedServletInputStream(byte[] bytes) {
+            this.input = new ByteArrayInputStream(bytes);
         }
 
         @Override
@@ -63,12 +86,17 @@ public class MultiReadHttpServletRequest extends HttpServletRequestWrapper {
 
         @Override
         public void setReadListener(ReadListener readListener) {
-            //nothing to do
+            // no-op
         }
 
         @Override
-        public int read() throws IOException {
+        public int read() {
             return input.read();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) {
+            return input.read(b, off, len);
         }
     }
 }

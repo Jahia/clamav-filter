@@ -10,27 +10,47 @@ import org.osgi.service.component.annotations.Component;
 @Component(immediate = true, service = {ClamavConfig.class, ManagedService.class}, property = Constants.SERVICE_PID + "=org.jahia.community.clamav")
 public class ClamavConfig implements ManagedService {
 
-    private String host = ClamavConstants.DEFAULT_HOST;
-    private int port = ClamavConstants.DEFAULT_PORT;
-    private int connectionTimeout = ClamavConstants.DEFAULT_CONNECTION_TIMEOUT;
-    private int readTimeout = ClamavConstants.DEFAULT_READ_TIMEOUT;
+    private volatile String host = ClamavConstants.DEFAULT_HOST;
+    private volatile int port = ClamavConstants.DEFAULT_PORT;
+    private volatile int connectionTimeout = ClamavConstants.DEFAULT_CONNECTION_TIMEOUT;
+    private volatile int readTimeout = ClamavConstants.DEFAULT_READ_TIMEOUT;
 
     @Override
     public void updated(Dictionary<String, ?> dictionary) throws ConfigurationException {
         if (dictionary == null) {
             return;
         }
-        if (dictionary.get("host") != null) {
-            host = (String) dictionary.get("host");
+        final String newHost = parseString(dictionary, "host", host);
+        final int newPort = parseInt(dictionary, "port", port);
+        final int newConn = parseInt(dictionary, "connection_timeout", connectionTimeout);
+        final int newRead = parseInt(dictionary, "read_timeout", readTimeout);
+        if (newPort < ClamavConstants.MIN_PORT || newPort > ClamavConstants.MAX_PORT) {
+            throw new ConfigurationException("port", "out of range");
         }
-        if (dictionary.get("port") != null) {
-            port = Integer.parseInt((String) dictionary.get("port"));
+        if (newConn <= 0 || newConn > ClamavConstants.MAX_TIMEOUT_MS
+                || newRead <= 0 || newRead > ClamavConstants.MAX_TIMEOUT_MS) {
+            throw new ConfigurationException("timeout", "out of range");
         }
-        if (dictionary.get("connection_timeout") != null) {
-            connectionTimeout = Integer.parseInt((String) dictionary.get("connection_timeout"));
+        this.host = newHost;
+        this.port = newPort;
+        this.connectionTimeout = newConn;
+        this.readTimeout = newRead;
+    }
+
+    private static String parseString(Dictionary<String, ?> d, String key, String fallback) {
+        final Object v = d.get(key);
+        return (v == null) ? fallback : v.toString();
+    }
+
+    private static int parseInt(Dictionary<String, ?> d, String key, int fallback) throws ConfigurationException {
+        final Object v = d.get(key);
+        if (v == null) {
+            return fallback;
         }
-        if (dictionary.get("read_timeout") != null) {
-            readTimeout = Integer.parseInt((String) dictionary.get("read_timeout"));
+        try {
+            return Integer.parseInt(v.toString());
+        } catch (NumberFormatException e) {
+            throw new ConfigurationException(key, "not an integer", e);
         }
     }
 

@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.Part;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.jahia.bin.filters.AbstractServletFilter;
+import org.jahia.community.clamav.ClamavConstants;
 import org.jahia.community.clamav.scan.Result;
 import org.jahia.community.clamav.scan.Status;
 import org.jahia.community.clamav.service.ClamavService;
@@ -28,6 +29,9 @@ public class ClamavFilter extends AbstractServletFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavFilter.class);
     public static final String WEBFLOW_TOKEN_PARAM = "webflowToken";
+    @SuppressWarnings("java:S1075")
+    private static final String FORMS_UPLOAD_PATH = "/modules/forms/live/fileupload";
+
     private final CommonsMultipartResolver multipartResolver = new CommonsMultipartResolver();
     private ClamavService clamavService;
 
@@ -53,58 +57,103 @@ public class ClamavFilter extends AbstractServletFilter {
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException, ServletException {
+        if (!(request instanceof HttpServletRequest)) {
+            chain.doFilter(request, response);
+            return;
+        }
+        final HttpServletRequest httpRequest = (HttpServletRequest) request;
+        final boolean multipart = ServletFileUpload.isMultipartContent(httpRequest)
+                && httpRequest.getParameter(WEBFLOW_TOKEN_PARAM) == null;
+        final boolean formsUpload = !multipart && isFormsOctetStreamUpload(httpRequest);
+        if (!multipart && !formsUpload) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        if (ServletFileUpload.isMultipartContent(httpRequest)
+                && httpRequest.getParameter(WEBFLOW_TOKEN_PARAM) != null) {
+            LOGGER.info("Webflow upload, ignored");
+            chain.doFilter(request, response);
+            return;
+        }
+
         try {
-            boolean isClean = true;
-            if (request instanceof HttpServletRequest) {
-                HttpServletRequest httpServletRequest = (HttpServletRequest) request;
-                // Fileupload other than with Webflow
-                if (ServletFileUpload.isMultipartContent(httpServletRequest) && httpServletRequest.getParameter(WEBFLOW_TOKEN_PARAM) == null) {
-                    httpServletRequest = multipartResolver.resolveMultipart(new MultiReadHttpServletRequest(httpServletRequest));
-                    isClean = checkWithAntivirus(httpServletRequest);
-                } // Fileuplod trhough Webflow, ignored for the moment as it's breaking the feature and it's meant to be deprecated at one moment
-                else if (ServletFileUpload.isMultipartContent(httpServletRequest) && httpServletRequest.getParameter(WEBFLOW_TOKEN_PARAM) != null) {
-                    LOGGER.info("Webdflow upload, ignored");
-                } // Fileupload through Forms
-                else if (httpServletRequest.getContentType() != null && httpServletRequest.getContentType().startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                        && httpServletRequest.getRequestURI() != null && httpServletRequest.getRequestURI().startsWith("/modules/forms/live/fileupload")) {
-                    final MultiReadHttpServletRequest multiReadHttpServletRequest = new MultiReadHttpServletRequest(httpServletRequest);
-                    LOGGER.info("Forms upload");
-                    isClean = checkWithAntivirus(multiReadHttpServletRequest.getInputStream());
-                }
+            final MultiReadHttpServletRequest wrapped = new MultiReadHttpServletRequest(httpRequest, ClamavConstants.DEFAULT_MAX_SCAN_BYTES);
+            final ScanOutcome outcome = multipart ? scanMultipart(wrapped) : scanOctetStream(wrapped);
+            switch (outcome) {
+                case CLEAN:
+                    chain.doFilter(wrapped, response);
+                    return;
+                case INFECTED:
+                    LOGGER.error("Uploaded file is a malware");
+                    sendError(response, HttpServletResponse.SC_FORBIDDEN);
+                    return;
+                case SCANNER_UNAVAILABLE:
+                    LOGGER.error("ClamAV unreachable - rejecting upload (fail-closed)");
+                    sendError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                    return;
+                default:
+                    sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
-            if (isClean) {
-                chain.doFilter(request, response);
-            } else {
-                LOGGER.error("Uploaded file is a malware");
-                if (response instanceof HttpServletResponse) {
-                    ((HttpServletResponse) response).sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
-                }
-            }
+        } catch (MultiReadHttpServletRequest.RequestTooLargeException ex) {
+            LOGGER.warn("Upload rejected: {}", ex.getMessage());
+            sendError(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
         } catch (IOException | ServletException | MultipartException ex) {
-            LOGGER.error("Error when filtering request to check for a malware", ex);
+            LOGGER.error("Error scanning request for malware", ex);
+            sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
 
-    private boolean checkWithAntivirus(HttpServletRequest request) throws IOException, ServletException {
-        if (clamavService.ping()) {
-            Result scanResult = null;
-            for (Part part : request.getParts()) {
-                scanResult = clamavService.scan(part.getInputStream());
-                if (scanResult.getStatus().equals(Status.FAILED)) {
-                    return false;
+    private static boolean isFormsOctetStreamUpload(HttpServletRequest req) {
+        final String ct = req.getContentType();
+        final String uri = req.getRequestURI();
+        return ct != null && ct.startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)
+                && uri != null && uri.startsWith(FORMS_UPLOAD_PATH);
+    }
+
+    private static void sendError(ServletResponse response, int statusCode) throws IOException {
+        if (response instanceof HttpServletResponse) {
+            ((HttpServletResponse) response).sendError(statusCode);
+        }
+    }
+
+    private ScanOutcome scanMultipart(MultiReadHttpServletRequest wrapped) throws IOException, ServletException {
+        if (clamavService == null || !clamavService.ping()) {
+            return ScanOutcome.SCANNER_UNAVAILABLE;
+        }
+        final HttpServletRequest resolved = multipartResolver.resolveMultipart(wrapped);
+        for (Part part : resolved.getParts()) {
+            try (InputStream in = part.getInputStream()) {
+                final Result scanResult = clamavService.scan(in);
+                if (Status.FAILED.equals(scanResult.getStatus())) {
+                    return ScanOutcome.INFECTED;
+                }
+                if (Status.ERROR.equals(scanResult.getStatus())) {
+                    return ScanOutcome.SCANNER_UNAVAILABLE;
                 }
             }
         }
-        return true;
+        return ScanOutcome.CLEAN;
     }
 
-    private boolean checkWithAntivirus(InputStream inputStream) {
-        if (clamavService.ping()) {
-            final Result scanResult = clamavService.scan(inputStream);
-            if (scanResult.getStatus().equals(Status.FAILED)) {
-                return false;
+    private ScanOutcome scanOctetStream(MultiReadHttpServletRequest wrapped) throws IOException {
+        if (clamavService == null || !clamavService.ping()) {
+            return ScanOutcome.SCANNER_UNAVAILABLE;
+        }
+        LOGGER.info("Forms upload scan");
+        try (InputStream in = wrapped.getInputStream()) {
+            final Result scanResult = clamavService.scan(in);
+            if (Status.FAILED.equals(scanResult.getStatus())) {
+                return ScanOutcome.INFECTED;
+            }
+            if (Status.ERROR.equals(scanResult.getStatus())) {
+                return ScanOutcome.SCANNER_UNAVAILABLE;
             }
         }
-        return true;
+        return ScanOutcome.CLEAN;
+    }
+
+    private enum ScanOutcome {
+        CLEAN, INFECTED, SCANNER_UNAVAILABLE
     }
 }

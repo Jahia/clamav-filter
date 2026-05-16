@@ -24,6 +24,7 @@ import java.util.Base64;
 public class ClamavQueryExtension {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavQueryExtension.class);
+    private static final String STATUS_ERROR = "ERROR";
 
     private ClamavQueryExtension() {
     }
@@ -59,7 +60,11 @@ public class ClamavQueryExtension {
     public static GqlScanResult scanTest(
             @GraphQLName("content") @GraphQLDescription("Base64-encoded file content to scan") String content) {
         if (content == null || content.isEmpty()) {
-            return new GqlScanResult("ERROR", null);
+            return new GqlScanResult(STATUS_ERROR, null);
+        }
+        if (content.length() > ClamavConstants.MAX_BASE64_INPUT_CHARS) {
+            LOGGER.warn("Rejecting clamavScanTest: content exceeds {} chars", ClamavConstants.MAX_BASE64_INPUT_CHARS);
+            return new GqlScanResult(STATUS_ERROR, null);
         }
         final ClamavService service = BundleUtils.getOsgiService(ClamavService.class, null);
         if (service == null) {
@@ -71,7 +76,7 @@ public class ClamavQueryExtension {
             return new GqlScanResult(result.getStatus().name(), result.getSignature());
         } catch (Exception e) {
             LOGGER.error("Error scanning file via test endpoint", e);
-            return new GqlScanResult("ERROR", null);
+            return new GqlScanResult(STATUS_ERROR, null);
         }
     }
 

@@ -1,6 +1,7 @@
 package org.jahia.community.clamav.service.impl;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,7 +10,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import org.apache.commons.io.IOUtils;
 import org.jahia.community.clamav.scan.Result;
 import org.jahia.community.clamav.scan.Status;
 import org.jahia.community.clamav.service.ClamavConfig;
@@ -29,6 +29,7 @@ public class ClamavServiceImpl implements ClamavService {
     private static final String RESPONSE_OK = "stream: OK";
     private static final String STREAM_PREFIX = "stream:";
     private static final int CHUNK_SIZE = 2048;
+    private static final int MAX_REPLY_BYTES = 4096;
     private ClamavConfig clamavConfig;
 
     @Reference
@@ -39,81 +40,81 @@ public class ClamavServiceImpl implements ClamavService {
     @Override
     public boolean ping() {
         try {
-            return processCommand("zPING\0".getBytes()).trim().equalsIgnoreCase(PONG);
+            return processCommand("zPING\0".getBytes(StandardCharsets.US_ASCII)).trim().equalsIgnoreCase(PONG);
         } catch (IOException ex) {
-            LOGGER.error("Impossible to ping ClamAV", ex);
+            LOGGER.error("Impossible to ping ClamAV: {}", sanitize(ex.getMessage()));
             return false;
         }
     }
 
     @Override
     public Result scan(final InputStream inputStream) {
-
-        try ( Socket socket = new Socket()) {
+        try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), clamavConfig.getConnectionTimeout());
             socket.setSoTimeout(clamavConfig.getReadTimeout());
 
-            try ( OutputStream outStream = new BufferedOutputStream(socket.getOutputStream())) {
-                outStream.write("zINSTREAM\0".getBytes(StandardCharsets.UTF_8));
+            try (OutputStream outStream = new BufferedOutputStream(socket.getOutputStream());
+                 InputStream inStream = socket.getInputStream()) {
+                outStream.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));
                 outStream.flush();
 
                 final byte[] buffer = new byte[CHUNK_SIZE];
-                try ( InputStream inStream = socket.getInputStream()) {
-                    int read = inputStream.read(buffer);
-
-                    while (read >= 0) {
-                        final byte[] chunkSize = ByteBuffer.allocate(4).putInt(read).array();
-                        outStream.write(chunkSize);
-                        outStream.write(buffer, 0, read);
-
-                        if (inStream.available() > 0) {
-                            byte[] reply = IOUtils.toByteArray(inStream);
-                            throw new IOException(
-                                    "Reply from server: " + new String(reply, StandardCharsets.UTF_8));
-                        }
-                        read = inputStream.read(buffer);
+                int read = inputStream.read(buffer);
+                while (read >= 0) {
+                    outStream.write(ByteBuffer.allocate(4).putInt(read).array());
+                    outStream.write(buffer, 0, read);
+                    if (inStream.available() > 0) {
+                        final String reply = readBounded(inStream, MAX_REPLY_BYTES);
+                        throw new IOException("Daemon aborted scan: " + sanitize(reply));
                     }
-                    outStream.write(new byte[]{0, 0, 0, 0});
-                    outStream.flush();
-
-                    return populateVirusScanResult(new String(IOUtils.toByteArray(inStream)).trim());
+                    read = inputStream.read(buffer);
                 }
+                outStream.write(new byte[]{0, 0, 0, 0});
+                outStream.flush();
+
+                return populateVirusScanResult(readBounded(inStream, MAX_REPLY_BYTES).trim());
             }
         } catch (IOException ex) {
             final String errMsg = "Impossible to scan inputstream for a malware";
-            LOGGER.error(errMsg, ex);
+            LOGGER.error("{}: {}", errMsg, sanitize(ex.getMessage()));
             return new Result(Status.ERROR, errMsg);
         }
     }
 
     private String processCommand(final byte[] cmd) throws IOException {
-        String response = "";
-
-        try ( Socket socket = new Socket()) {
+        try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(clamavConfig.getHost(), clamavConfig.getPort()), clamavConfig.getConnectionTimeout());
             socket.setSoTimeout(clamavConfig.getReadTimeout());
 
-            try ( DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
+            try (DataOutputStream dos = new DataOutputStream(socket.getOutputStream())) {
                 dos.write(cmd);
                 dos.flush();
-
-                final InputStream is = socket.getInputStream();
-
-                int read = CHUNK_SIZE;
-                final byte[] buffer = new byte[CHUNK_SIZE];
-
-                while (read == CHUNK_SIZE) {
-                    try {
-                        read = is.read(buffer);
-                    } catch (IOException ex) {
-                        LOGGER.error("Error reading result from socket", ex);
-                        break;
-                    }
-                    response = new String(buffer, 0, read);
-                }
+                return readBounded(socket.getInputStream(), MAX_REPLY_BYTES);
             }
         }
-        return response;
+    }
+
+    private static String readBounded(InputStream in, int maxBytes) throws IOException {
+        final ByteArrayOutputStream out = new ByteArrayOutputStream();
+        final byte[] buf = new byte[CHUNK_SIZE];
+        int total = 0;
+        int read;
+        while ((read = in.read(buf)) > 0) {
+            total += read;
+            if (total > maxBytes) {
+                throw new IOException("Daemon reply exceeds " + maxBytes + " bytes");
+            }
+            out.write(buf, 0, read);
+        }
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
+    }
+
+    private static String sanitize(String s) {
+        if (s == null) {
+            return "";
+        }
+        final String cleaned = s.replaceAll("[\\r\\n\\t]", "_");
+        return cleaned.length() > 200 ? cleaned.substring(0, 200) + "..." : cleaned;
     }
 
     private Result populateVirusScanResult(final String result) {
@@ -125,9 +126,13 @@ public class ClamavServiceImpl implements ClamavService {
             scanResult.setStatus(Status.ERROR);
         } else if (RESPONSE_OK.equals(result)) {
             scanResult.setStatus(Status.PASSED);
-        } else if (result.endsWith(FOUND_SUFFIX)) {
-            scanResult.setSignature(
-                    result.substring(STREAM_PREFIX.length(), result.lastIndexOf(FOUND_SUFFIX) - 1).trim());
+        } else if (result.endsWith(FOUND_SUFFIX) && result.startsWith(STREAM_PREFIX)) {
+            final int end = result.lastIndexOf(FOUND_SUFFIX);
+            if (end > STREAM_PREFIX.length() + 1) {
+                scanResult.setSignature(result.substring(STREAM_PREFIX.length(), end - 1).trim());
+            } else {
+                scanResult.setStatus(Status.ERROR);
+            }
         } else if (result.endsWith(ERROR_SUFFIX)) {
             scanResult.setStatus(Status.ERROR);
         }
