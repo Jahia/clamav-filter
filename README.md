@@ -41,10 +41,14 @@ The UI allows editing all four settings, saving them, and testing the connection
 
 ## How it works
 
-1. When a file is uploaded through Jahia (Media Manager, Forms, etc.), the upload filter intercepts the stream.
-2. The file content is forwarded to the ClamAV daemon over TCP using the `INSTREAM` command.
-3. If ClamAV reports a threat, the upload is rejected and the virus signature is logged.
-4. If ClamAV is unreachable (daemon down, wrong host/port, timeout), the upload is **blocked by default** to prevent unscanned files from reaching the repository.
+1. When a file is uploaded through Jahia, the filter intercepts the request. Two upload shapes are scanned:
+   - Standard `multipart/form-data` uploads (Media Manager, etc.), excluding Spring Webflow uploads (`webflowToken` parameter present).
+   - Jahia Forms file uploads posted as `application/octet-stream` to `/modules/forms/live/fileupload`.
+2. The request body is buffered (capped at 100 MB) and forwarded to the ClamAV daemon over TCP using the `INSTREAM` command. The wrapped request is forwarded downstream so the bytes scanned are the bytes consumed by Jahia (no TOCTOU gap).
+3. Responses:
+   - Threat detected → **HTTP 403 Forbidden**, signature logged.
+   - Body exceeds the configured maximum → **HTTP 413 Payload Too Large**.
+   - ClamAV unreachable (daemon down, wrong host/port, timeout) → **HTTP 503 Service Unavailable** (fail-closed; uploads are never silently passed through).
 
 ## Testing
 
