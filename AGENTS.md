@@ -13,7 +13,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 
 | Class | Role |
 |-------|------|
-| `ClamavFilter` | Extends Jahia `AbstractServletFilter` (order `0.5f`, matchAllUrls); scopes to multipart uploads (excluding Spring Webflow when `webflowToken` is present) and Forms octet-stream uploads at `/modules/forms/live/fileupload`. Wraps the request in `MultiReadHttpServletRequest`, scans every part, **forwards the wrapped request** to the chain (no TOCTOU gap), fail-closes on scanner unavailability. |
+| `ClamavFilter` | Extends Jahia `AbstractServletFilter` (order `0.5f`, matchAllUrls); scopes to **all** multipart uploads (Media Manager, Spring Webflow, etc.) and Forms octet-stream uploads at `/modules/forms/live/fileupload`. Scanning is deliberately **not** gated on any client-supplied parameter (a `webflowToken`-based skip was removed — it let an uploader disable scanning). Rejects oversize bodies up front via declared `Content-Length`. Wraps the request in `MultiReadHttpServletRequest`, scans every part, **forwards the wrapped request** to the chain (no TOCTOU gap), fail-closes on scanner unavailability. |
 | `MultiReadHttpServletRequest` | `HttpServletRequestWrapper` that buffers the body once into `byte[]` for replay. Bounded by `maxBytes` constructor arg; throws `RequestTooLargeException` (extends `IOException`) when exceeded. |
 | `ClamavService` | OSGi service interface: `ping()` and `scan(InputStream)` |
 | `ClamavServiceImpl` | Opens socket to ClamAV daemon, implements INSTREAM protocol; bounds reply reads, sanitizes log messages (CRLF strip + truncate), explicit US-ASCII/UTF-8 charsets |
@@ -94,7 +94,7 @@ yarn install
 
 ## Gotchas
 
-- The filter scans only multipart uploads (excluding `webflowToken`-bearing Spring Webflow posts) and Forms octet-stream uploads to `/modules/forms/live/fileupload`. Other requests (JSON, GraphQL, GETs) pass through untouched.
+- The filter scans all multipart uploads and Forms octet-stream uploads to `/modules/forms/live/fileupload`. Other requests (JSON, GraphQL, GETs) pass through untouched. Do **not** reintroduce a skip based on a client-supplied parameter (e.g. `webflowToken`) — it is an attacker-toggleable AV bypass.
 - The filter forwards the **wrapped** request to the chain — downstream code consumes the same buffered bytes that were scanned. Removing the wrapper would reopen a TOCTOU gap.
 - Request bodies above `DEFAULT_MAX_SCAN_BYTES` (100 MiB) are rejected with `413` before scanning to avoid unauthenticated heap-DoS.
 - Scanner unreachable / `Status.ERROR` is **fail-closed** (`503`). Do not change this without a documented threat-model review.
