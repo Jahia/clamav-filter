@@ -64,8 +64,15 @@ public class ClamavServiceImpl implements ClamavService {
                     outStream.write(ByteBuffer.allocate(4).putInt(read).array());
                     outStream.write(buffer, 0, read);
                     if (inStream.available() > 0) {
-                        final String reply = readBounded(inStream, MAX_REPLY_BYTES);
-                        throw new IOException("Daemon aborted scan: " + sanitize(reply));
+                        // ClamAV replies and closes the stream as soon as it has a verdict — typically
+                        // when it detects a signature partway through the upload. Parse that early reply
+                        // as a real result so a detection is classified as FAILED (and logged/blocked as
+                        // malware) rather than swallowed as a generic ERROR.
+                        final String reply = readBounded(inStream, MAX_REPLY_BYTES).trim();
+                        if (LOGGER.isWarnEnabled()) {
+                            LOGGER.warn("ClamAV returned an early reply mid-stream: {}", sanitize(reply));
+                        }
+                        return populateVirusScanResult(reply);
                     }
                     read = inputStream.read(buffer);
                 }
@@ -109,7 +116,7 @@ public class ClamavServiceImpl implements ClamavService {
         return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
-    private static String sanitize(String s) {
+    static String sanitize(String s) {
         if (s == null) {
             return "";
         }
@@ -117,7 +124,7 @@ public class ClamavServiceImpl implements ClamavService {
         return cleaned.length() > 200 ? cleaned.substring(0, 200) + "..." : cleaned;
     }
 
-    private Result populateVirusScanResult(final String result) {
+    static Result populateVirusScanResult(final String result) {
         final Result scanResult = new Result();
         scanResult.setStatus(Status.FAILED);
         scanResult.setOutput(result);

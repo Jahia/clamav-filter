@@ -28,7 +28,6 @@ import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 public class ClamavFilter extends AbstractServletFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavFilter.class);
-    public static final String WEBFLOW_TOKEN_PARAM = "webflowToken";
     @SuppressWarnings("java:S1075")
     private static final String FORMS_UPLOAD_PATH = "/modules/forms/live/fileupload";
 
@@ -62,18 +61,24 @@ public class ClamavFilter extends AbstractServletFilter {
             return;
         }
         final HttpServletRequest httpRequest = (HttpServletRequest) request;
-        final boolean multipart = ServletFileUpload.isMultipartContent(httpRequest)
-                && httpRequest.getParameter(WEBFLOW_TOKEN_PARAM) == null;
+        // Scan every multipart upload. The scan must NOT be conditional on a client-supplied value
+        // (e.g. a request parameter): a guard an attacker can toggle is not a guard. The request is
+        // wrapped so the buffered bytes are replayed downstream, so scanning here is safe to do for
+        // all multipart uploads, including Spring Webflow ones.
+        final boolean multipart = ServletFileUpload.isMultipartContent(httpRequest);
         final boolean formsUpload = !multipart && isFormsOctetStreamUpload(httpRequest);
         if (!multipart && !formsUpload) {
             chain.doFilter(request, response);
             return;
         }
 
-        if (ServletFileUpload.isMultipartContent(httpRequest)
-                && httpRequest.getParameter(WEBFLOW_TOKEN_PARAM) != null) {
-            LOGGER.info("Webflow upload, ignored");
-            chain.doFilter(request, response);
+        // Defense-in-depth: when the client honestly declares an oversize body, reject it before a
+        // single byte is buffered into the heap. The streaming cap in MultiReadHttpServletRequest
+        // still applies to chunked or under-declared bodies.
+        if (exceedsScanLimit(httpRequest.getContentLengthLong())) {
+            LOGGER.warn("Upload rejected: declared Content-Length exceeds the {}-byte scan limit",
+                    ClamavConstants.DEFAULT_MAX_SCAN_BYTES);
+            sendError(response, HttpServletResponse.SC_REQUEST_ENTITY_TOO_LARGE);
             return;
         }
 
@@ -105,10 +110,22 @@ public class ClamavFilter extends AbstractServletFilter {
     }
 
     private static boolean isFormsOctetStreamUpload(HttpServletRequest req) {
-        final String ct = req.getContentType();
-        final String uri = req.getRequestURI();
-        return ct != null && ct.startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)
+        return isFormsOctetStreamUpload(req.getContentType(), req.getRequestURI());
+    }
+
+    /** True for the Jahia Forms octet-stream upload endpoint. Visible for testing. */
+    static boolean isFormsOctetStreamUpload(String contentType, String uri) {
+        return contentType != null && contentType.startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)
                 && uri != null && uri.startsWith(FORMS_UPLOAD_PATH);
+    }
+
+    /**
+     * True when a declared body length exceeds the scan limit. A negative length (unknown /
+     * chunked) returns {@code false} so those requests fall through to the streaming cap.
+     * Visible for testing.
+     */
+    static boolean exceedsScanLimit(long contentLength) {
+        return contentLength > ClamavConstants.DEFAULT_MAX_SCAN_BYTES;
     }
 
     private static void sendError(ServletResponse response, int statusCode) throws IOException {

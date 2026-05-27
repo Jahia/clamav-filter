@@ -111,7 +111,7 @@ public class ClamavMutationExtension {
      * (letters, digits, dot, hyphen, colon, brackets). Rejects path separators, whitespace, and
      * any other character that could enable URL/scheme injection in downstream socket use.
      */
-    private static boolean isValidHost(String host) {
+    static boolean isValidHost(String host) {
         if (host.isEmpty() || host.length() > MAX_HOST_LENGTH) {
             return false;
         }
