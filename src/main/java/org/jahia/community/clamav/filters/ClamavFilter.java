@@ -157,7 +157,7 @@ public class ClamavFilter extends AbstractServletFilter {
         if (clamavService == null || !clamavService.ping()) {
             return ScanOutcome.SCANNER_UNAVAILABLE;
         }
-        LOGGER.info("Forms upload scan");
+        LOGGER.debug("Forms upload scan");
         try (InputStream in = wrapped.getInputStream()) {
             final Result scanResult = clamavService.scan(in);
             if (Status.FAILED.equals(scanResult.getStatus())) {

@@ -2,22 +2,17 @@ package org.jahia.community.clamav.scan;
 
 public class Result {
 
-    private Status status;
-    private String output;
-    private String signature;
-
-    public Result() {
-        super();
-    }
+    private final Status status;
+    private final String output;
+    private final String signature;
 
     public Result(Status status, String output) {
-        super();
         this.status = status;
         this.output = output;
+        this.signature = null;
     }
 
     public Result(Status status, String output, String signature) {
-        super();
         this.status = status;
         this.output = output;
         this.signature = signature;
@@ -27,24 +22,12 @@ public class Result {
         return status;
     }
 
-    public void setStatus(Status status) {
-        this.status = status;
-    }
-
     public String getOutput() {
         return output;
     }
 
-    public void setOutput(String output) {
-        this.output = output;
-    }
-
     public String getSignature() {
         return signature;
-    }
-
-    public void setSignature(String signature) {
-        this.signature = signature;
     }
 
     @Override

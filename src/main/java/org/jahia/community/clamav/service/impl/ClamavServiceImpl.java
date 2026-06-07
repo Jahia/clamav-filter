@@ -106,7 +106,7 @@ public class ClamavServiceImpl implements ClamavService {
         final byte[] buf = new byte[CHUNK_SIZE];
         int total = 0;
         int read;
-        while ((read = in.read(buf)) > 0) {
+        while ((read = in.read(buf)) != -1) {
             total += read;
             if (total > maxBytes) {
                 throw new IOException("Daemon reply exceeds " + maxBytes + " bytes");
@@ -125,24 +125,23 @@ public class ClamavServiceImpl implements ClamavService {
     }
 
     static Result populateVirusScanResult(final String result) {
-        final Result scanResult = new Result();
-        scanResult.setStatus(Status.FAILED);
-        scanResult.setOutput(result);
-
         if (result == null || result.isEmpty()) {
-            scanResult.setStatus(Status.ERROR);
-        } else if (RESPONSE_OK.equals(result)) {
-            scanResult.setStatus(Status.PASSED);
-        } else if (result.endsWith(FOUND_SUFFIX) && result.startsWith(STREAM_PREFIX)) {
+            return new Result(Status.ERROR, result);
+        }
+        if (RESPONSE_OK.equals(result)) {
+            return new Result(Status.PASSED, result);
+        }
+        if (result.endsWith(FOUND_SUFFIX) && result.startsWith(STREAM_PREFIX)) {
             final int end = result.lastIndexOf(FOUND_SUFFIX);
             if (end > STREAM_PREFIX.length() + 1) {
-                scanResult.setSignature(result.substring(STREAM_PREFIX.length(), end - 1).trim());
-            } else {
-                scanResult.setStatus(Status.ERROR);
+                final String signature = result.substring(STREAM_PREFIX.length(), end - 1).trim();
+                return new Result(Status.FAILED, result, signature);
             }
-        } else if (result.endsWith(ERROR_SUFFIX)) {
-            scanResult.setStatus(Status.ERROR);
+            return new Result(Status.ERROR, result);
         }
-        return scanResult;
+        if (result.endsWith(ERROR_SUFFIX)) {
+            return new Result(Status.ERROR, result);
+        }
+        return new Result(Status.FAILED, result);
     }
 }
