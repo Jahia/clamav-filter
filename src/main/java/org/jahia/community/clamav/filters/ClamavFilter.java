@@ -9,7 +9,6 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.Part;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 import org.jahia.bin.filters.AbstractServletFilter;
 import org.jahia.community.clamav.ClamavConstants;
@@ -22,6 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 
 @Component(immediate = true, service = AbstractServletFilter.class)
@@ -134,13 +135,18 @@ public class ClamavFilter extends AbstractServletFilter {
         }
     }
 
-    private ScanOutcome scanMultipart(MultiReadHttpServletRequest wrapped) throws IOException, ServletException {
+    private ScanOutcome scanMultipart(MultiReadHttpServletRequest wrapped) throws IOException {
         if (clamavService == null || !clamavService.ping()) {
             return ScanOutcome.SCANNER_UNAVAILABLE;
         }
-        final HttpServletRequest resolved = multipartResolver.resolveMultipart(wrapped);
-        for (Part part : resolved.getParts()) {
-            try (InputStream in = part.getInputStream()) {
+        // Parse the parts with the Commons resolver, which reads them from the buffered body
+        // independently of any servlet-level multipart configuration. Iterating Spring's parsed
+        // MultipartFile map (instead of the Servlet 3.0 getParts() API) avoids an
+        // IllegalStateException on endpoints whose servlet has no multipart config registered
+        // (e.g. /modules/api/provisioning) while still scanning every uploaded file.
+        final MultipartHttpServletRequest resolved = multipartResolver.resolveMultipart(wrapped);
+        for (MultipartFile file : resolved.getFileMap().values()) {
+            try (InputStream in = file.getInputStream()) {
                 final Result scanResult = clamavService.scan(in);
                 if (Status.FAILED.equals(scanResult.getStatus())) {
                     return ScanOutcome.INFECTED;

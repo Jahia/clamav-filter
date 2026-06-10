@@ -10,7 +10,7 @@
     <groupId>org.jahia.community</groupId>
     <artifactId>clamav-filter</artifactId>
     <name>ClamAV filter</name>
-    <version>1.0.3-SNAPSHOT</version>
+    <version>1.0.4-SNAPSHOT</version>
     <packaging>bundle</packaging>
     <description>Jahia module that scans uploaded files with a ClamAV daemon and blocks detected malware.</description>
     <properties>
