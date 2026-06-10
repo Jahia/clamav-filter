@@ -6,7 +6,7 @@ export default () => {
     console.debug('%c clamav-filter: activation in progress', 'color: #006633');
     registry.add('adminRoute', 'clamavFilter', {
         targets: ['administration-server-systemHealth:10'],
-        requiredPermission: 'admin',
+        requiredPermission: 'clamavAdmin',
         label: 'clamav-filter:label.menu_entry',
         isSelectable: true,
         render: () => React.createElement(ClamavFilterAdmin)
