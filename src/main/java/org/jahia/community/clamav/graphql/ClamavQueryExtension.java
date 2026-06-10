@@ -32,7 +32,7 @@ public class ClamavQueryExtension {
     @GraphQLField
     @GraphQLName("clamavSettings")
     @GraphQLDescription("Returns the current ClamAV connection settings from the configuration file")
-    @GraphQLRequiresPermission("admin")
+    @GraphQLRequiresPermission("clamavAdmin")
     public static GqlClamavSettings settings() {
         final ClamavConfig config = BundleUtils.getOsgiService(ClamavConfig.class, null);
         if (config == null) {
@@ -44,7 +44,7 @@ public class ClamavQueryExtension {
     @GraphQLField
     @GraphQLName("clamavPing")
     @GraphQLDescription("Tests the connection to the ClamAV daemon; returns true if the daemon is reachable")
-    @GraphQLRequiresPermission("admin")
+    @GraphQLRequiresPermission("clamavAdmin")
     public static Boolean ping() {
         final ClamavService service = BundleUtils.getOsgiService(ClamavService.class, null);
         if (service == null) {
@@ -56,7 +56,7 @@ public class ClamavQueryExtension {
     @GraphQLField
     @GraphQLName("clamavScanTest")
     @GraphQLDescription("Scans a base64-encoded file against the ClamAV daemon and returns the scan result")
-    @GraphQLRequiresPermission("admin")
+    @GraphQLRequiresPermission("clamavAdmin")
     public static GqlScanResult scanTest(
             @GraphQLName("content") @GraphQLDescription("Base64-encoded file content to scan") String content) {
         if (content == null || content.isEmpty()) {

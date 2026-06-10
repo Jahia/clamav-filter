@@ -32,7 +32,7 @@ public class ClamavMutationExtension {
     @GraphQLField
     @GraphQLName("clamavSaveSettings")
     @GraphQLDescription("Saves the ClamAV connection settings to the OSGi configuration file and applies them immediately")
-    @GraphQLRequiresPermission("admin")
+    @GraphQLRequiresPermission("clamavAdmin")
     public static Boolean saveSettings(
             @GraphQLName("host") @GraphQLDescription("ClamAV daemon hostname or IP address") String host,
             @GraphQLName("port") @GraphQLDescription("ClamAV daemon port number") Integer port,
