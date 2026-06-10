@@ -5,6 +5,7 @@ import graphql.annotations.annotationTypes.GraphQLField;
 import graphql.annotations.annotationTypes.GraphQLName;
 import graphql.annotations.annotationTypes.GraphQLTypeExtension;
 import org.jahia.community.clamav.ClamavConstants;
+import org.jahia.community.clamav.ClamavValidation;
 import org.jahia.modules.graphql.provider.dxm.DXGraphQLProvider;
 import org.jahia.modules.graphql.provider.dxm.security.GraphQLRequiresPermission;
 import org.jahia.osgi.BundleUtils;
@@ -24,7 +25,6 @@ public class ClamavMutationExtension {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavMutationExtension.class);
     private static final String PID = "org.jahia.community.clamav";
-    private static final int MAX_HOST_LENGTH = 253;
 
     private ClamavMutationExtension() {
     }
@@ -106,25 +106,8 @@ public class ClamavMutationExtension {
         }
     }
 
-    /**
-     * Accept hostnames, IPv4 addresses, and bracketed IPv6 addresses by character whitelist
-     * (letters, digits, dot, hyphen, colon, brackets). Rejects path separators, whitespace, and
-     * any other character that could enable URL/scheme injection in downstream socket use.
-     */
+    /** Delegates to {@link ClamavValidation#isValidHost(String)}. Visible for testing. */
     static boolean isValidHost(String host) {
-        if (host.isEmpty() || host.length() > MAX_HOST_LENGTH) {
-            return false;
-        }
-        for (int i = 0; i < host.length(); i++) {
-            final char c = host.charAt(i);
-            final boolean allowed = (c >= 'a' && c <= 'z')
-                    || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9')
-                    || c == '.' || c == '-' || c == ':' || c == '[' || c == ']';
-            if (!allowed) {
-                return false;
-            }
-        }
-        return true;
+        return ClamavValidation.isValidHost(host);
     }
 }

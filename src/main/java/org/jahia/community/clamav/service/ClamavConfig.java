@@ -2,6 +2,7 @@ package org.jahia.community.clamav.service;
 
 import java.util.Dictionary;
 import org.jahia.community.clamav.ClamavConstants;
+import org.jahia.community.clamav.ClamavValidation;
 import org.osgi.framework.Constants;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
@@ -24,6 +25,12 @@ public class ClamavConfig implements ManagedService {
         final int newPort = parseInt(dictionary, "port", port);
         final int newConn = parseInt(dictionary, "connection_timeout", connectionTimeout);
         final int newRead = parseInt(dictionary, "read_timeout", readTimeout);
+        // Validate the host on this path too — not just in the GraphQL save mutation. A config
+        // pushed directly through ConfigurationAdmin (e.g. a .cfg file) would otherwise install an
+        // empty or malformed host that only fails later as an opaque socket-connect error.
+        if (!ClamavValidation.isValidHost(newHost)) {
+            throw new ConfigurationException("host", "invalid host");
+        }
         if (newPort < ClamavConstants.MIN_PORT || newPort > ClamavConstants.MAX_PORT) {
             throw new ConfigurationException("port", "out of range");
         }
