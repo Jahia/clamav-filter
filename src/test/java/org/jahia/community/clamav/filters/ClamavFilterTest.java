@@ -1,13 +1,20 @@
 package org.jahia.community.clamav.filters;
 
+import java.util.List;
 import org.jahia.community.clamav.ClamavConstants;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for the pure decision logic of {@link ClamavFilter}: which uploads are in scope for
@@ -78,6 +85,39 @@ class ClamavFilterTest {
         @DisplayName("allows unknown (negative) and small declared lengths so they hit the streaming cap")
         void allowsUnknownAndSmall(long length) {
             assertThat(ClamavFilter.exceedsScanLimit(length)).isFalse();
+        }
+    }
+
+    @Nested
+    @DisplayName("collectFiles")
+    class CollectFiles {
+
+        @Test
+        @DisplayName("returns every file even when multiple parts share one field name (no AV-bypass via getFileMap collapsing)")
+        void collectsDuplicateFieldNameParts() {
+            final MultipartFile fileA = mock(MultipartFile.class);
+            final MultipartFile fileB = mock(MultipartFile.class);
+            final MultipartFile other = mock(MultipartFile.class);
+            final MultiValueMap<String, MultipartFile> map = new LinkedMultiValueMap<>();
+            // Two files posted under the SAME field name — getFileMap() would keep only one.
+            map.add("upload", fileA);
+            map.add("upload", fileB);
+            map.add("attachment", other);
+            final MultipartHttpServletRequest resolved = mock(MultipartHttpServletRequest.class);
+            when(resolved.getMultiFileMap()).thenReturn(map);
+
+            final List<MultipartFile> files = ClamavFilter.collectFiles(resolved);
+
+            assertThat(files).containsExactlyInAnyOrder(fileA, fileB, other);
+        }
+
+        @Test
+        @DisplayName("returns an empty list when there are no file parts")
+        void emptyWhenNoParts() {
+            final MultipartHttpServletRequest resolved = mock(MultipartHttpServletRequest.class);
+            when(resolved.getMultiFileMap()).thenReturn(new LinkedMultiValueMap<>());
+
+            assertThat(ClamavFilter.collectFiles(resolved)).isEmpty();
         }
     }
 }

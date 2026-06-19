@@ -2,8 +2,7 @@ import {registry} from '@jahia/ui-extender';
 import {ClamavFilterAdmin} from './ClamavFilter';
 import React from 'react';
 
-export default () => {
-    console.debug('%c clamav-filter: activation in progress', 'color: #006633');
+export default function registerAdminRoute() {
     registry.add('adminRoute', 'clamavFilter', {
         targets: ['administration-server-systemHealth:10'],
         requiredPermission: 'clamavAdmin',
@@ -11,4 +10,4 @@ export default () => {
         isSelectable: true,
         render: () => React.createElement(ClamavFilterAdmin)
     });
-};
+}

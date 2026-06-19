@@ -54,7 +54,7 @@ The UI allows editing all four settings, saving them, and testing the connection
 
 - **Upload coverage.** Only `multipart/form-data` requests and the Jahia Forms octet-stream endpoint are scanned. Other content-ingestion routes (e.g. WebDAV `PUT`, raw-body JCR REST uploads) are **not** intercepted by this filter; defend those separately if your deployment exposes them.
 - **Memory ceiling.** Each in-flight upload is buffered in heap up to the 100 MB cap. The per-instance memory exposure is roughly *(cap × max concurrent uploads)* — size the JVM heap and any upstream upload-size / concurrency limits accordingly, and ensure this filter runs only for authenticated upload flows.
-- **Outbound connection primitive.** The configurable `host`/`port` is used to open a raw TCP socket from the Jahia server. Because the daemon normally runs on `localhost` or a private network, the module does **not** block private/loopback/link-local targets. Treat the `admin` permission that guards the settings and test endpoints as granting a server-side outbound-connection capability, and restrict it accordingly.
+- **Outbound connection primitive.** The configurable `host`/`port` is used to open a raw TCP socket from the Jahia server. Because the daemon normally runs on `localhost` or a private network, the module does **not** block private/loopback/link-local targets. Treat the `clamavAdmin` permission that guards the settings and test endpoints as granting a server-side outbound-connection capability, and restrict it accordingly. The module ships an assignable `clamav-filter-administrator` role granting only `administrationAccess` + `clamavAdmin`, so this capability can be delegated without granting full server `admin`.
 
 ## Testing
 

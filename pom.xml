@@ -18,6 +18,21 @@
         <jahia-deploy-on-site>all</jahia-deploy-on-site>
         <jahia-module-type>system</jahia-module-type>
         <jahia-depends>default,graphql-dxm-provider</jahia-depends>
+        <!-- Build and target Java 17 (Jahia 8.2 supports JDK 17). Required by the SonarQube
+             scanner (sonar-maven-plugin needs a Java 17+ runtime). -->
+        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <!-- SonarQube analysis scope so `mvn clean install sonar:sonar` works without -D flags. -->
+        <sonar.projectKey>org.jahia.community:clamav-filter</sonar.projectKey>
+        <sonar.sources>pom.xml,src/javascript,src/main</sonar.sources>
+        <sonar.tests>src/test</sonar.tests>
+        <!-- Build output and JS unit-test files are not production sources. index.js is the 4-line
+             Module-Federation bootstrap entry (no business logic); it intentionally uses `window`
+             (the Babel target includes Safari 12 / Chrome 60, which predate globalThis) and a
+             promise-chained dynamic import (webpack topLevelAwait experiment is off), so the
+             corresponding JS convention rules do not apply. -->
+        <sonar.exclusions>src/main/resources/javascript/apps/**,**/*.test.jsx,**/*.test.js,src/javascript/index.js</sonar.exclusions>
     </properties>
 
     <scm>
@@ -62,6 +77,12 @@
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>3.27.7</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.14.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
