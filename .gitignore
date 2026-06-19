@@ -21,6 +21,9 @@ yarn-error.log
 # Webpack chunks (only the main bundle is committed)
 src/main/resources/javascript/apps
 
+# Jest coverage output
+coverage
+
 .env
 **/install-state.gz
 .codegraph

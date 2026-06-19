@@ -2,6 +2,8 @@ package org.jahia.community.clamav.filters;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import javax.servlet.FilterChain;
 import javax.servlet.FilterConfig;
 import javax.servlet.ServletException;
@@ -32,12 +34,24 @@ public class ClamavFilter extends AbstractServletFilter {
     @SuppressWarnings("java:S1075")
     private static final String FORMS_UPLOAD_PATH = "/modules/forms/live/fileupload";
 
-    private final CommonsMultipartResolver multipartResolver = new CommonsMultipartResolver();
-    private ClamavService clamavService;
+    // volatile: written by the OSGi DS bind/unbind thread, read by concurrent servlet request
+    // threads in doFilter. The default STATIC reference policy publishes the value before
+    // activation, but volatile makes the cross-thread visibility explicit and JMM-safe.
+    // S3077 (suppressed): the field holds an immutable service handle that is only ever reassigned,
+    // never mutated through the reference, so a volatile reference is the correct, sufficient guard.
+    @SuppressWarnings("java:S3077")
+    private volatile ClamavService clamavService;
 
-    @Reference(service = ClamavService.class)
+    @Reference(service = ClamavService.class, unbind = "unsetClamavService")
     public void setClamavService(ClamavService clamavService) {
         this.clamavService = clamavService;
+    }
+
+    public void unsetClamavService(ClamavService clamavService) {
+        // Clear only if the unbound service is the one currently held (DS unbind contract).
+        if (this.clamavService == clamavService) {
+            this.clamavService = null;
+        }
     }
 
     public ClamavFilter() {
@@ -99,6 +113,7 @@ public class ClamavFilter extends AbstractServletFilter {
                     sendError(response, HttpServletResponse.SC_SERVICE_UNAVAILABLE);
                     return;
                 default:
+                    LOGGER.error("Unexpected scan outcome: {}", outcome);
                     sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
             }
         } catch (MultiReadHttpServletRequest.RequestTooLargeException ex) {
@@ -130,50 +145,89 @@ public class ClamavFilter extends AbstractServletFilter {
     }
 
     private static void sendError(ServletResponse response, int statusCode) throws IOException {
-        if (response instanceof HttpServletResponse) {
-            ((HttpServletResponse) response).sendError(statusCode);
+        if (response instanceof HttpServletResponse httpResponse) {
+            httpResponse.sendError(statusCode);
         }
     }
 
     private ScanOutcome scanMultipart(MultiReadHttpServletRequest wrapped) throws IOException {
-        if (clamavService == null || !clamavService.ping()) {
-            return ScanOutcome.SCANNER_UNAVAILABLE;
-        }
-        // Parse the parts with the Commons resolver, which reads them from the buffered body
+        // Parse the parts with a Commons resolver, which reads them from the buffered body
         // independently of any servlet-level multipart configuration. Iterating Spring's parsed
         // MultipartFile map (instead of the Servlet 3.0 getParts() API) avoids an
         // IllegalStateException on endpoints whose servlet has no multipart config registered
         // (e.g. /modules/api/provisioning) while still scanning every uploaded file.
-        final MultipartHttpServletRequest resolved = multipartResolver.resolveMultipart(wrapped);
-        for (MultipartFile file : resolved.getFileMap().values()) {
-            try (InputStream in = file.getInputStream()) {
-                final Result scanResult = clamavService.scan(in);
-                if (Status.FAILED.equals(scanResult.getStatus())) {
-                    return ScanOutcome.INFECTED;
-                }
-                if (Status.ERROR.equals(scanResult.getStatus())) {
-                    return ScanOutcome.SCANNER_UNAVAILABLE;
+        // A fresh resolver per request: CommonsMultipartResolver / Apache Commons FileUpload are
+        // not documented as thread-safe, and this filter is a singleton serving concurrent requests.
+        // getMultiFileMap() (not getFileMap()) preserves EVERY part, including multiple files posted
+        // under the same field name — getFileMap() collapses those to one, leaving the others
+        // unscanned but replayed downstream (an AV bypass).
+        final MultipartHttpServletRequest resolved = new CommonsMultipartResolver().resolveMultipart(wrapped);
+        final List<MultipartFile> files = collectFiles(resolved);
+        final List<InputStream> streams = new ArrayList<>(files.size());
+        for (MultipartFile file : files) {
+            streams.add(file.getInputStream());
+        }
+        return scanStreams(streams);
+    }
+
+    /**
+     * Flattens every uploaded file from the resolved multipart request. Uses {@code getMultiFileMap()}
+     * rather than {@code getFileMap()}: the latter is keyed by field name and collapses multiple files
+     * posted under the same field name to a single entry, which would leave the others unscanned but
+     * replayed downstream (an AV bypass). Visible for testing.
+     */
+    static List<MultipartFile> collectFiles(MultipartHttpServletRequest resolved) {
+        final List<MultipartFile> files = new ArrayList<>();
+        resolved.getMultiFileMap().values().forEach(files::addAll);
+        return files;
+    }
+
+    private ScanOutcome scanOctetStream(MultiReadHttpServletRequest wrapped) throws IOException {
+        LOGGER.debug("Forms upload scan");
+        final List<InputStream> streams = new ArrayList<>(1);
+        streams.add(wrapped.getInputStream());
+        return scanStreams(streams);
+    }
+
+    /**
+     * Scans each supplied stream, returning the first blocking outcome. Fail-closed: a null/absent
+     * scanner is {@code SCANNER_UNAVAILABLE}, an infected part is {@code INFECTED}, and a scanner
+     * {@code Status.ERROR} is treated as unavailable (503). Every stream is closed.
+     */
+    private ScanOutcome scanStreams(List<InputStream> streams) throws IOException {
+        final ClamavService service = clamavService;
+        if (service == null || !service.ping()) {
+            closeQuietly(streams);
+            return ScanOutcome.SCANNER_UNAVAILABLE;
+        }
+        try {
+            for (InputStream in : streams) {
+                try (InputStream stream = in) {
+                    final Result scanResult = service.scan(stream);
+                    if (Status.FAILED.equals(scanResult.getStatus())) {
+                        return ScanOutcome.INFECTED;
+                    }
+                    if (Status.ERROR.equals(scanResult.getStatus())) {
+                        return ScanOutcome.SCANNER_UNAVAILABLE;
+                    }
                 }
             }
+        } finally {
+            closeQuietly(streams);
         }
         return ScanOutcome.CLEAN;
     }
 
-    private ScanOutcome scanOctetStream(MultiReadHttpServletRequest wrapped) throws IOException {
-        if (clamavService == null || !clamavService.ping()) {
-            return ScanOutcome.SCANNER_UNAVAILABLE;
-        }
-        LOGGER.debug("Forms upload scan");
-        try (InputStream in = wrapped.getInputStream()) {
-            final Result scanResult = clamavService.scan(in);
-            if (Status.FAILED.equals(scanResult.getStatus())) {
-                return ScanOutcome.INFECTED;
-            }
-            if (Status.ERROR.equals(scanResult.getStatus())) {
-                return ScanOutcome.SCANNER_UNAVAILABLE;
+    private static void closeQuietly(List<InputStream> streams) {
+        for (InputStream in : streams) {
+            try {
+                if (in != null) {
+                    in.close();
+                }
+            } catch (IOException ignored) {
+                // best-effort cleanup of any stream not consumed by the scan loop
             }
         }
-        return ScanOutcome.CLEAN;
     }
 
     private enum ScanOutcome {

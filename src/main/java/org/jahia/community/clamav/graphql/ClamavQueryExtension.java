@@ -6,6 +6,7 @@ import graphql.annotations.annotationTypes.GraphQLName;
 import graphql.annotations.annotationTypes.GraphQLTypeExtension;
 import org.jahia.community.clamav.ClamavConstants;
 import org.jahia.community.clamav.scan.Result;
+import org.jahia.community.clamav.scan.Status;
 import org.jahia.community.clamav.service.ClamavConfig;
 import org.jahia.community.clamav.service.ClamavService;
 import org.jahia.modules.graphql.provider.dxm.DXGraphQLProvider;
@@ -24,7 +25,8 @@ import java.util.Base64;
 public class ClamavQueryExtension {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavQueryExtension.class);
-    private static final String STATUS_ERROR = "ERROR";
+    // Linked to the domain enum so the GraphQL status string can't silently drift from Status.ERROR.
+    private static final String STATUS_ERROR = Status.ERROR.name();
 
     private ClamavQueryExtension() {
     }
@@ -70,11 +72,18 @@ public class ClamavQueryExtension {
         if (service == null) {
             return new GqlScanResult("CONNECTION_FAILED", null);
         }
+        final byte[] bytes;
         try {
-            final byte[] bytes = Base64.getDecoder().decode(content);
+            bytes = Base64.getDecoder().decode(content);
+        } catch (IllegalArgumentException e) {
+            // Predictable bad-input case (malformed base64) — log at warn, not error.
+            LOGGER.warn("Rejecting clamavScanTest: content is not valid base64");
+            return new GqlScanResult(STATUS_ERROR, null);
+        }
+        try {
             final Result result = service.scan(new ByteArrayInputStream(bytes));
             return new GqlScanResult(result.getStatus().name(), result.getSignature());
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             LOGGER.error("Error scanning file via test endpoint", e);
             return new GqlScanResult(STATUS_ERROR, null);
         }

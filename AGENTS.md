@@ -4,7 +4,8 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 
 ## Key Facts
 
-- **artifactId**: `clamav-filter` | **version**: `1.0.1-SNAPSHOT` | parent: `jahia-modules` `8.2.1.0`
+- **artifactId**: `clamav-filter` | **version**: `1.0.4-SNAPSHOT` | parent: `jahia-modules` `8.2.1.0`
+- **Java**: builds and targets **Java 17** (`maven.compiler.release=17`; also required by the SonarQube scanner)
 - **Java package**: `org.jahia.community.clamav`
 - **jahia-depends**: `default,graphql-dxm-provider` (graphql-dxm-provider 3.4.0)
 - **No Blueprint/Spring** — pure OSGi DS (`_dsannotations` in maven-bundle-plugin); config via `ConfigurationAdmin` + `ManagedService` (PID `org.jahia.community.clamav`)
@@ -43,7 +44,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 | Query | `clamavScanTest(content: String!)` → `{status, signature}` | `content` is base64-encoded; `status` values: PASSED/FAILED/ERROR/CONNECTION_FAILED |
 | Mutation | `clamavSaveSettings(host, port, connectionTimeout, readTimeout)` → Boolean | Writes via `ConfigurationAdmin`; all params optional (null → keep current). Validates inputs and returns `false` on rejection. |
 
-All operations require `admin` permission.
+All operations require the module-specific `clamavAdmin` permission (resolved on the JCR root node). The module ships an assignable `clamav-filter-administrator` role (`src/main/import/roles.xml`) granting only `administrationAccess` + `clamavAdmin`, so the settings/test endpoints can be delegated without granting full server `admin`.
 
 ### `clamavSaveSettings` input validation
 
