@@ -162,12 +162,21 @@ public class ClamavFilter extends AbstractServletFilter {
         // under the same field name — getFileMap() collapses those to one, leaving the others
         // unscanned but replayed downstream (an AV bypass).
         final MultipartHttpServletRequest resolved = new CommonsMultipartResolver().resolveMultipart(wrapped);
-        final List<MultipartFile> files = collectFiles(resolved);
-        final List<InputStream> streams = new ArrayList<>(files.size());
-        for (MultipartFile file : files) {
-            streams.add(file.getInputStream());
+        final ClamavService service = clamavService;
+        if (service == null || !service.ping()) {
+            return ScanOutcome.SCANNER_UNAVAILABLE;
         }
-        return scanStreams(streams);
+        // Open each file's stream lazily inside its own try-with-resources: opening all of them
+        // up front would leak the already-opened ones if a later getInputStream() failed.
+        for (MultipartFile file : collectFiles(resolved)) {
+            try (InputStream in = file.getInputStream()) {
+                final ScanOutcome outcome = classify(service.scan(in));
+                if (outcome != ScanOutcome.CLEAN) {
+                    return outcome;
+                }
+            }
+        }
+        return ScanOutcome.CLEAN;
     }
 
     /**
@@ -184,50 +193,27 @@ public class ClamavFilter extends AbstractServletFilter {
 
     private ScanOutcome scanOctetStream(MultiReadHttpServletRequest wrapped) throws IOException {
         LOGGER.debug("Forms upload scan");
-        final List<InputStream> streams = new ArrayList<>(1);
-        streams.add(wrapped.getInputStream());
-        return scanStreams(streams);
+        final ClamavService service = clamavService;
+        if (service == null || !service.ping()) {
+            return ScanOutcome.SCANNER_UNAVAILABLE;
+        }
+        try (InputStream in = wrapped.getInputStream()) {
+            return classify(service.scan(in));
+        }
     }
 
     /**
-     * Scans each supplied stream, returning the first blocking outcome. Fail-closed: a null/absent
-     * scanner is {@code SCANNER_UNAVAILABLE}, an infected part is {@code INFECTED}, and a scanner
-     * {@code Status.ERROR} is treated as unavailable (503). Every stream is closed.
+     * Maps a scan {@link Result} to an outcome. Fail-closed: an infected part is {@code INFECTED}
+     * and a scanner {@code Status.ERROR} is treated as unavailable (503); anything else is clean.
      */
-    private ScanOutcome scanStreams(List<InputStream> streams) throws IOException {
-        final ClamavService service = clamavService;
-        if (service == null || !service.ping()) {
-            closeQuietly(streams);
+    private static ScanOutcome classify(Result scanResult) {
+        if (Status.FAILED.equals(scanResult.getStatus())) {
+            return ScanOutcome.INFECTED;
+        }
+        if (Status.ERROR.equals(scanResult.getStatus())) {
             return ScanOutcome.SCANNER_UNAVAILABLE;
         }
-        try {
-            for (InputStream in : streams) {
-                try (InputStream stream = in) {
-                    final Result scanResult = service.scan(stream);
-                    if (Status.FAILED.equals(scanResult.getStatus())) {
-                        return ScanOutcome.INFECTED;
-                    }
-                    if (Status.ERROR.equals(scanResult.getStatus())) {
-                        return ScanOutcome.SCANNER_UNAVAILABLE;
-                    }
-                }
-            }
-        } finally {
-            closeQuietly(streams);
-        }
         return ScanOutcome.CLEAN;
-    }
-
-    private static void closeQuietly(List<InputStream> streams) {
-        for (InputStream in : streams) {
-            try {
-                if (in != null) {
-                    in.close();
-                }
-            } catch (IOException ignored) {
-                // best-effort cleanup of any stream not consumed by the scan loop
-            }
-        }
     }
 
     private enum ScanOutcome {

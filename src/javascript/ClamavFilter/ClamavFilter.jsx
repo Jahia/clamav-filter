@@ -11,8 +11,10 @@ import {
     clampPort,
     coerceTimeout,
     CONN_TIMEOUT_DEFAULT,
+    CONN_TIMEOUT_MIN,
     normalizeFormState,
-    READ_TIMEOUT_DEFAULT
+    READ_TIMEOUT_DEFAULT,
+    READ_TIMEOUT_MIN
 } from './formHelpers';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
@@ -82,11 +84,11 @@ export const ClamavFilterAdmin = () => {
             }
 
             if (field === 'connectionTimeout') {
-                return {...prev, connectionTimeout: coerceTimeout(prev.connectionTimeout, CONN_TIMEOUT_DEFAULT)};
+                return {...prev, connectionTimeout: coerceTimeout(prev.connectionTimeout, CONN_TIMEOUT_DEFAULT, CONN_TIMEOUT_MIN)};
             }
 
             if (field === 'readTimeout') {
-                return {...prev, readTimeout: coerceTimeout(prev.readTimeout, READ_TIMEOUT_DEFAULT)};
+                return {...prev, readTimeout: coerceTimeout(prev.readTimeout, READ_TIMEOUT_DEFAULT, READ_TIMEOUT_MIN)};
             }
 
             return prev;
@@ -118,7 +120,8 @@ export const ClamavFilterAdmin = () => {
     };
 
     const handlePing = async () => {
-        setSaveStatus(null);
+        // Do not clear saveStatus here: testing the connection is a separate action and must not
+        // wipe a still-relevant save-success/error banner.
         setPingStatus(null);
         try {
             const result = await runPing();

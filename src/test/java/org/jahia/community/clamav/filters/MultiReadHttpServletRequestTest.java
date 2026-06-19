@@ -80,13 +80,15 @@ class MultiReadHttpServletRequestTest {
     }
 
     private static byte[] readAll(InputStream in) throws IOException {
-        final java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        final byte[] buf = new byte[256];
-        int read;
-        while ((read = in.read(buf)) >= 0) {
-            out.write(buf, 0, read);
+        // Own and close the supplied stream so every caller is leak-safe.
+        try (InputStream stream = in; java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream()) {
+            final byte[] buf = new byte[256];
+            int read;
+            while ((read = stream.read(buf)) >= 0) {
+                out.write(buf, 0, read);
+            }
+            return out.toByteArray();
         }
-        return out.toByteArray();
     }
 
     /** Minimal ServletInputStream over a byte array for stubbing the wrapped request. */

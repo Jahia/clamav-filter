@@ -28,6 +28,15 @@ describe('coerceTimeout', () => {
         expect(coerceTimeout('', 2000)).toBe(2000);
         expect(coerceTimeout('x', 20000)).toBe(20000);
     });
+
+    test('floors a below-minimum value to the provided minimum', () => {
+        expect(coerceTimeout('-5', 2000, 100)).toBe(100);
+        expect(coerceTimeout('0', 2000, 100)).toBe(100);
+    });
+
+    test('caps an over-range value at the server maximum (300000)', () => {
+        expect(coerceTimeout('999999', 2000, 100)).toBe(300000);
+    });
 });
 
 describe('normalizeFormState', () => {
