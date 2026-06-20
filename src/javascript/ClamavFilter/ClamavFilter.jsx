@@ -49,7 +49,7 @@ export const ClamavFilterAdmin = () => {
     const {loading} = useQuery(GET_SETTINGS, {
         fetchPolicy: 'network-only',
         onCompleted: data => {
-            const s = data?.clamavSettings;
+            const s = data?.clamav?.settings;
             if (s) {
                 setFormState({
                     host: s.host ?? 'localhost',
@@ -67,7 +67,7 @@ export const ClamavFilterAdmin = () => {
 
     useEffect(() => {
         runPing().then(result => {
-            setPingStatus(result.data?.clamavPing ? 'success' : 'error');
+            setPingStatus(result.data?.clamav?.ping ? 'success' : 'error');
         }).catch(() => setPingStatus('error'));
     }, [runPing]);
 
@@ -109,10 +109,10 @@ export const ClamavFilterAdmin = () => {
                     readTimeout: normalized.readTimeout
                 }
             });
-            setSaveStatus(result.data?.clamavSaveSettings ? 'success' : 'error');
-            if (result.data?.clamavSaveSettings) {
+            setSaveStatus(result.data?.clamav?.saveSettings ? 'success' : 'error');
+            if (result.data?.clamav?.saveSettings) {
                 const pingResult = await runPing();
-                setPingStatus(pingResult.data?.clamavPing ? 'success' : 'error');
+                setPingStatus(pingResult.data?.clamav?.ping ? 'success' : 'error');
             }
         } catch {
             setSaveStatus('error');
@@ -125,7 +125,7 @@ export const ClamavFilterAdmin = () => {
         setPingStatus(null);
         try {
             const result = await runPing();
-            setPingStatus(result.data?.clamavPing ? 'success' : 'error');
+            setPingStatus(result.data?.clamav?.ping ? 'success' : 'error');
         } catch {
             setPingStatus('error');
         }
@@ -151,7 +151,7 @@ export const ClamavFilterAdmin = () => {
             const base64 = reader.result.split(',')[1];
             try {
                 const result = await runScan({variables: {content: base64}});
-                setScanResult(result.data?.clamavScanTest ?? {status: 'ERROR', signature: null});
+                setScanResult(result.data?.clamav?.scanTest ?? {status: 'ERROR', signature: null});
             } catch {
                 setScanResult({status: 'ERROR', signature: null});
             }

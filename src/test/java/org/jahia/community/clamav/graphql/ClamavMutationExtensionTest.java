@@ -8,7 +8,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Unit tests for {@link ClamavMutationExtension#isValidHost(String)} — the host whitelist applied
+ * Unit tests for {@link ClamavMutation#isValidHost(String)} — the host whitelist applied
  * before a caller-supplied daemon host is persisted and later used to open a raw socket. Rejecting
  * whitespace, path separators, and scheme characters limits the shapes that could enable
  * URL/scheme injection in downstream socket use.
@@ -22,7 +22,7 @@ class ClamavMutationExtensionTest {
     })
     @DisplayName("accepts hostnames, IPv4, and bracketed IPv6")
     void acceptsValidHosts(String host) {
-        assertThat(ClamavMutationExtension.isValidHost(host)).isTrue();
+        assertThat(ClamavMutation.isValidHost(host)).isTrue();
     }
 
     @ParameterizedTest
@@ -32,17 +32,17 @@ class ClamavMutationExtensionTest {
     })
     @DisplayName("rejects whitespace, path, scheme, and shell/control characters")
     void rejectsInjectionShapes(String host) {
-        assertThat(ClamavMutationExtension.isValidHost(host)).isFalse();
+        assertThat(ClamavMutation.isValidHost(host)).isFalse();
     }
 
     @Test
     @DisplayName("rejects empty and over-length hosts")
     void rejectsEmptyAndOverLength() {
-        assertThat(ClamavMutationExtension.isValidHost("")).isFalse();
+        assertThat(ClamavMutation.isValidHost("")).isFalse();
         final StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 254; i++) {
             sb.append('a');
         }
-        assertThat(ClamavMutationExtension.isValidHost(sb.toString())).isFalse();
+        assertThat(ClamavMutation.isValidHost(sb.toString())).isFalse();
     }
 }
