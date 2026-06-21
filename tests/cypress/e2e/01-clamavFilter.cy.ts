@@ -28,7 +28,7 @@ describe('ClamAV Filter', () => {
 
     it('returns all settings fields via GraphQL', () => {
         cy.apollo({query: getSettings})
-            .its('data.clamavSettings')
+            .its('data.clamav.settings')
             .should(settings => {
                 expect(settings).to.have.property('host');
                 expect(settings).to.have.property('port');
@@ -47,7 +47,7 @@ describe('ClamAV Filter', () => {
                 readTimeout: 30000
             }
         })
-            .its('data.clamavSaveSettings')
+            .its('data.clamav.saveSettings')
             .should('eq', true);
     });
 
@@ -63,7 +63,7 @@ describe('ClamAV Filter', () => {
             }
         });
         cy.apollo({query: getSettings})
-            .its('data.clamavSettings')
+            .its('data.clamav.settings')
             .should(settings => {
                 expect(settings.host).to.eq('clamav');
                 expect(settings.port).to.eq(3310);
@@ -73,7 +73,7 @@ describe('ClamAV Filter', () => {
 
     it('pings the ClamAV daemon via GraphQL and returns true', () => {
         cy.apollo({query: ping})
-            .its('data.clamavPing')
+            .its('data.clamav.ping')
             .should('eq', true);
     });
 

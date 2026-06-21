@@ -62,7 +62,7 @@ describe('ClamAV Filter — permission enforcement', () => {
         it('allows the gated query for a user granted only the module permission', () => {
             querySettingsAs(ALLOWED_USER).then((result: never) => {
                 expect(errorsOf(result), 'should have no errors').to.have.length(0);
-                const settings = (result as {data: {clamavSettings: {host: string; port: number}}}).data.clamavSettings;
+                const settings = (result as {data: {clamav: {settings: {host: string; port: number}}}}).data.clamav.settings;
                 expect(settings).to.have.property('host');
                 expect(settings).to.have.property('port');
             });

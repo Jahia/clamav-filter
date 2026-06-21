@@ -1,8 +1,10 @@
 query {
-    clamavSettings {
-        host
-        port
-        connectionTimeout
-        readTimeout
+    clamav {
+        settings {
+            host
+            port
+            connectionTimeout
+            readTimeout
+        }
     }
 }
