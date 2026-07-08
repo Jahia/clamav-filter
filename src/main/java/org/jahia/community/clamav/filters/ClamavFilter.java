@@ -81,8 +81,12 @@ public class ClamavFilter extends AbstractServletFilter {
         // wrapped so the buffered bytes are replayed downstream, so scanning here is safe to do for
         // all multipart uploads, including Spring Webflow ones.
         final boolean multipart = ServletFileUpload.isMultipartContent(httpRequest);
-        final boolean formsUpload = !multipart && isFormsOctetStreamUpload(httpRequest);
-        if (!multipart && !formsUpload) {
+        // SEC-141: scan raw (non-multipart) binary upload channels too, not just multipart and the one
+        // Forms octet-stream path. Any application/octet-stream body and any PUT body (WebDAV / JCR-REST
+        // binary writes) is buffered and scanned via the same fail-closed path, closing the coverage gap
+        // where malware delivered over a non-multipart channel entered the repository unscanned.
+        final boolean rawBinary = !multipart && isRawBinaryUpload(httpRequest);
+        if (!multipart && !rawBinary) {
             chain.doFilter(request, response);
             return;
         }
@@ -123,6 +127,20 @@ public class ClamavFilter extends AbstractServletFilter {
             LOGGER.error("Error scanning request for malware", ex);
             sendError(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    /**
+     * True for a non-multipart request whose body should be scanned as a raw binary upload: any
+     * {@code application/octet-stream} body, or any {@code PUT} carrying a body (WebDAV / JCR-REST binary
+     * writes). This generalizes the former Forms-only octet-stream handling to close the SEC-141 gap.
+     * Visible for testing.
+     */
+    static boolean isRawBinaryUpload(HttpServletRequest req) {
+        final String contentType = req.getContentType();
+        if (contentType != null && contentType.startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)) {
+            return true;
+        }
+        return "PUT".equalsIgnoreCase(req.getMethod()) && req.getContentLengthLong() != 0;
     }
 
     private static boolean isFormsOctetStreamUpload(HttpServletRequest req) {
