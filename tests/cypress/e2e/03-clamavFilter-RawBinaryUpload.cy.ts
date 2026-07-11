@@ -51,12 +51,16 @@ describe('ClamAV Filter — raw-binary / PUT upload scanning (SEC-141, U1/D2)', 
             url: jcrRestBase + '/paths' + targetPath,
             failOnStatusCode: false
         }).then(response => {
-            expect(response.status, 'JCR-REST preflight GET on ' + targetPath +
-                ' (403/404 here means a security-filter/provisioning gap, not a clamav-filter block)')
-                .to.eq(200);
-            const selfHref = response.body && response.body._links && response.body._links.self ?
-                response.body._links.self.href :
-                undefined;
+            expect(
+                response.status,
+                'JCR-REST preflight GET on ' +
+                    targetPath +
+                    ' (403/404 here means a security-filter/provisioning gap, not a clamav-filter block)'
+            ).to.eq(200);
+            const selfHref =
+                response.body && response.body._links && response.body._links.self ?
+                    response.body._links.self.href :
+                    undefined;
             expect(selfHref, 'HAL self link on the JCR-REST node response').to.be.a('string');
             propertySelfHref = selfHref + '/properties/' + propertyName;
         });
@@ -86,8 +90,10 @@ describe('ClamAV Filter — raw-binary / PUT upload scanning (SEC-141, U1/D2)', 
             headers: {'Content-Type': 'text/plain'},
             failOnStatusCode: false
         }).then(response => {
-            expect(response.status, 'EICAR content must be intercepted by ClamavFilter before reaching the JCR-REST handler')
-                .to.eq(403);
+            expect(
+                response.status,
+                'EICAR content must be intercepted by ClamavFilter before reaching the JCR-REST handler'
+            ).to.eq(403);
         });
     });
 });

@@ -22,7 +22,7 @@ describe('ClamAV Filter — GraphQL schema is namespaced (clamav{...}), not flat
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const flatPing: DocumentNode = require('graphql-tag/loader!../fixtures/graphql/query/flatPing.graphql');
 
-    const errorsOf = (result: {graphQLErrors?: Array<{message: string}>; errors?: Array<{message: string}>}) =>
+    const errorsOf = (result: { graphQLErrors?: Array<{ message: string }>; errors?: Array<{ message: string }> }) =>
         result.graphQLErrors ?? result.errors ?? [];
 
     before(() => {
@@ -32,7 +32,7 @@ describe('ClamAV Filter — GraphQL schema is namespaced (clamav{...}), not flat
     it('the correct nested clamav{ settings } shape succeeds', () => {
         cy.apollo({query: getSettings}).then((result: never) => {
             expect(errorsOf(result), 'should have no errors').to.have.length(0);
-            const settings = (result as {data: {clamav: {settings: {host: string}}}}).data.clamav.settings;
+            const settings = (result as { data: { clamav: { settings: { host: string } } } }).data.clamav.settings;
             expect(settings).to.have.property('host');
         });
     });
@@ -40,7 +40,7 @@ describe('ClamAV Filter — GraphQL schema is namespaced (clamav{...}), not flat
     it('the correct nested clamav{ ping } shape succeeds', () => {
         cy.apollo({query: ping}).then((result: never) => {
             expect(errorsOf(result), 'should have no errors').to.have.length(0);
-            const pingResult = (result as {data: {clamav: {ping: boolean}}}).data.clamav.ping;
+            const pingResult = (result as { data: { clamav: { ping: boolean } } }).data.clamav.ping;
             expect(pingResult).to.be.a('boolean');
         });
     });
@@ -49,7 +49,7 @@ describe('ClamAV Filter — GraphQL schema is namespaced (clamav{...}), not flat
         cy.apollo({query: flatSettings}).then((result: never) => {
             const errs = errorsOf(result);
             expect(errs, 'schema validation errors for the nonexistent flat field').to.have.length.greaterThan(0);
-            expect(errs.map((e: {message: string}) => e.message).join(' ')).to.contain('clamavSettings');
+            expect(errs.map((e: { message: string }) => e.message).join(' ')).to.contain('clamavSettings');
         });
     });
 
@@ -57,7 +57,7 @@ describe('ClamAV Filter — GraphQL schema is namespaced (clamav{...}), not flat
         cy.apollo({query: flatPing}).then((result: never) => {
             const errs = errorsOf(result);
             expect(errs, 'schema validation errors for the nonexistent flat field').to.have.length.greaterThan(0);
-            expect(errs.map((e: {message: string}) => e.message).join(' ')).to.contain('clamavPing');
+            expect(errs.map((e: { message: string }) => e.message).join(' ')).to.contain('clamavPing');
         });
     });
 });
