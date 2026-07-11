@@ -12,21 +12,25 @@
  * the always-present `/users/root` node, since it needs no site/content provisioning beyond what
  * `assets/provisioning.yml` already installs.
  *
- * IMPORTANT — flagged for Stage 6 to confirm live (could not be verified without a running
- * Jahia+ClamAV Docker stack in Stage 5):
- *  1. The RESTful JCR API is DEPRECATED and, per Jahia's security-filter, CLOSED BY DEFAULT — API
- *     access requires a `jcrestapi` grant in an `org.jahia.bundles.api.authorization-*.yml` scope
- *     file. This module's `tests/assets/provisioning.yml` does not configure any such grant.
- *     Whether the Docker test image's own default security-filter profile already grants this to a
- *     privileged/root session (the existing suite proves GraphQL + admin UI are reachable under
- *     `cy.login()`, but that does not by itself prove the separate `jcrestapi` API grant) is
- *     UNCONFIRMED. If this spec 403s at the PREFLIGHT step below, that is a security-filter
- *     provisioning gap, not a clamav-filter bug — Stage 6 should add a grant (or use an existing one)
- *     before concluding otherwise.
+ * CORRECTION (SUPPORT-646, see pipeline reports 06/07/08): an earlier pipeline stage found this
+ * spec's preflight GET returning 404s (even for indisputably-existing paths like `/sites`) and the
+ * base `/version` route 500ing, and mistakenly concluded this was a platform-level defect in the
+ * `jcrestapi` 3.3.0 bundle. That conclusion was WRONG. The real cause, confirmed live: Jahia's
+ * security-filter bundle protects ALL APIs (GraphQL, RESTful JCR, custom REST, views) by default,
+ * and `org.jahia.bundles.api.security.cfg`'s `security.profile` setting defaults to `default` ("no
+ * API calls from external origins or non-privileged users"), which blocked these JCR-REST calls —
+ * the block manifests as confusing 404s/500s deep in the resource layer rather than a clean 403 at
+ * the filter, which is what misled the earlier investigation. `tests/assets/provisioning.yml` now
+ * sets `security.profile=open` (via a `config:property-set` karafCommand, disposable test
+ * containers only — never acceptable for production) before this spec runs, which fixes it: the
+ * preflight now returns 200 and both tests below run and pass normally, not skipped.
+ *
+ * Notes on request/response shape, kept for future readers:
+ *  1. The RESTful JCR API is DEPRECATED. It remains reachable here because `security.profile=open`
+ *     disables all security-filter API restrictions in this disposable test environment.
  *  2. The exact request/response shape (HAL `_links.self.href` field name, whether the property PUT
- *     endpoint accepts a raw (non-JSON) request body for a String property, JCR name-escaping) is
- *     taken from documentation, not a live response, and may need small adjustment once run against
- *     a real server.
+ *     endpoint accepts a raw (non-JSON) request body for a String property, JCR name-escaping) was
+ *     confirmed live against a running server.
  *  3. The EICAR payload is sent as the RAW PUT body (not JSON-wrapped) specifically so the exact
  *     EICAR byte sequence (which contains a literal backslash) reaches the daemon unescaped — a JSON
  *     string encoding of EICAR would double-escape that backslash and could silently defeat
