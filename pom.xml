@@ -85,6 +85,18 @@
             <version>5.14.2</version>
             <scope>test</scope>
         </dependency>
+        <!-- Test-only SLF4J binding: the module itself only depends on slf4j-api (transitively,
+             provided scope) and relies on the OSGi container's own logging backend at runtime.
+             No SLF4J provider is on the unit-test classpath otherwise, so LOGGER.error/.warn calls
+             are silently swallowed by the NOP logger and can't be asserted on. logback-classic
+             gives ClamavFilterDoFilterTest a real Logger implementation to attach a ListAppender
+             to for the F5/F7 log-content assertions. -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.4.14</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <repositories>

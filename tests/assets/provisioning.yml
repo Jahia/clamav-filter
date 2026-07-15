@@ -1,5 +1,17 @@
 - karafCommand: "log:log 'START - provisioning'"
 
+# SUPPORT-646 correction (see 06/07/08 pipeline reports): the security-filter bundle
+# (org.jahia.bundles.api.security.cfg) protects ALL APIs (GraphQL, RESTful JCR, custom REST,
+# views) by default. Its 'security.profile' setting defaults to 'default' ("no API calls from
+# external origins or non-privileged users"), which blocks the RESTful JCR-REST calls made by
+# 03-clamavFilter-RawBinaryUpload.cy.ts. The block manifests as confusing 404s/500s deep in the
+# resource layer (e.g. the paths/{path} resource) rather than a clean 403 at the filter, which is
+# what caused an earlier pipeline stage to mistakenly conclude this was a jcrestapi platform
+# defect. Setting security.profile=open here (never acceptable for production, fine for this
+# disposable test container) removes that block so the spec can actually exercise the filter
+# end to end.
+- karafCommand: "config:property-set -p org.jahia.bundles.api.security security.profile open"
+
 - karafCommand: "log:log 'START - Install clamav-filter dependencies'"
 - installBundle:
       - 'mvn:org.jahia.modules/graphql-dxm-provider/LATEST'

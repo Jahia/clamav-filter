@@ -86,4 +86,87 @@ class ClamavConfigTest {
 
         assertThat(config.getHost()).isEqualTo(ClamavConstants.DEFAULT_HOST);
     }
+
+    @Test
+    @DisplayName("a second successful update on the same live instance replaces the first (live reload, no restart)")
+    void secondUpdateOnLiveInstanceSticks() throws ConfigurationException {
+        // Fixes the F9 downgrade: Stage 3's cited test only ever called updated() once. This
+        // proves the ManagedService callback firing again on an already-configured, live
+        // instance (exactly what Felix FileInstall/ConfigurationAdmin do on a .cfg change or a
+        // GraphQL saveSettings write) actually replaces the first set of values, not just that a
+        // fresh instance can be configured once.
+        final ClamavConfig config = new ClamavConfig();
+        config.updated(validProps());
+        assertThat(config.getHost()).isEqualTo("clamav.internal");
+        assertThat(config.getPort()).isEqualTo(3310);
+
+        final Hashtable<String, Object> secondProps = new Hashtable<>();
+        secondProps.put("host", "clamav2.internal");
+        secondProps.put("port", "4433");
+        secondProps.put("connection_timeout", "3000");
+        secondProps.put("read_timeout", "25000");
+        config.updated(secondProps);
+
+        assertThat(config.getHost()).isEqualTo("clamav2.internal");
+        assertThat(config.getPort()).isEqualTo(4433);
+        assertThat(config.getConnectionTimeout()).isEqualTo(3000);
+        assertThat(config.getReadTimeout()).isEqualTo(25000);
+    }
+
+    @Test
+    @DisplayName("rejects an out-of-range connection_timeout and leaves the running config untouched")
+    void rejectsConnectionTimeoutOutOfRangeAtomically() {
+        // ClamavConfig.java:37-40's third rejection branch (timeout out of range) had zero
+        // coverage of any kind before this test — not even a basic "does it throw" case.
+        final ClamavConfig config = new ClamavConfig();
+        final Hashtable<String, Object> props = validProps();
+        props.put("host", "still-valid-host");
+        props.put("connection_timeout", String.valueOf(ClamavConstants.MAX_TIMEOUT_MS + 1));
+
+        assertThatThrownBy(() -> config.updated(props))
+                .isInstanceOf(ConfigurationException.class);
+
+        // Atomicity re-check for the timeout branch specifically (only host/port were re-checked
+        // by existing tests; nothing re-verified atomicity for a timeout-out-of-range rejection).
+        assertThat(config.getHost()).isEqualTo(ClamavConstants.DEFAULT_HOST);
+        assertThat(config.getConnectionTimeout()).isEqualTo(ClamavConstants.DEFAULT_CONNECTION_TIMEOUT);
+        assertThat(config.getReadTimeout()).isEqualTo(ClamavConstants.DEFAULT_READ_TIMEOUT);
+    }
+
+    @Test
+    @DisplayName("rejects an out-of-range (zero) read_timeout and leaves the running config untouched")
+    void rejectsReadTimeoutOutOfRangeAtomically() {
+        final ClamavConfig config = new ClamavConfig();
+        final Hashtable<String, Object> props = validProps();
+        props.put("read_timeout", "0");
+
+        assertThatThrownBy(() -> config.updated(props))
+                .isInstanceOf(ConfigurationException.class);
+
+        assertThat(config.getReadTimeout()).isEqualTo(ClamavConstants.DEFAULT_READ_TIMEOUT);
+        assertThat(config.getHost()).isEqualTo(ClamavConstants.DEFAULT_HOST);
+    }
+
+    @Test
+    @DisplayName("a partial update (host only) preserves the prior, non-default port and timeouts")
+    void partialUpdatePreservesPriorNonDefaultValues() throws ConfigurationException {
+        // The "partial update" success path: a dictionary supplying only a subset of keys must
+        // fall back to the PRIOR live values for the omitted keys, not the class defaults — this
+        // matters because ManagedService callbacks and .cfg files may legitimately omit unchanged
+        // keys. This was previously untested beyond the from-defaults case in appliesValidConfig.
+        final ClamavConfig config = new ClamavConfig();
+        config.updated(validProps());
+        assertThat(config.getPort()).isEqualTo(3310);
+
+        final Hashtable<String, Object> partial = new Hashtable<>();
+        partial.put("host", "only-host-changed");
+
+        config.updated(partial);
+
+        assertThat(config.getHost()).isEqualTo("only-host-changed");
+        // Prior (non-default) values retained, not reset to ClamavConstants defaults.
+        assertThat(config.getPort()).isEqualTo(3310);
+        assertThat(config.getConnectionTimeout()).isEqualTo(2000);
+        assertThat(config.getReadTimeout()).isEqualTo(20000);
+    }
 }
