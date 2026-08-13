@@ -44,7 +44,7 @@ describe('ClamAV Filter — permission enforcement', () => {
     });
 
     after(() => {
-        cy.apolloClient(); // reset the current Apollo client back to root
+        cy.apolloClient(); // Reset the current Apollo client back to root
         cy.login();
         deleteUser(DENIED_USER);
         deleteUser(ALLOWED_USER);
