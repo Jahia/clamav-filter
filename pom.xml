@@ -5,7 +5,7 @@
     <parent>
         <artifactId>jahia-modules</artifactId>
         <groupId>org.jahia.modules</groupId>
-        <version>8.2.1.0</version>
+        <version>8.2.3.2</version>
     </parent>
     <groupId>org.jahia.community</groupId>
     <artifactId>clamav-filter</artifactId>
@@ -64,7 +64,7 @@
         <dependency>
             <groupId>org.jahia.modules</groupId>
             <artifactId>graphql-dxm-provider</artifactId>
-            <version>3.4.0</version>
+            <version>3.8.1</version>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -82,7 +82,7 @@
         <dependency>
             <groupId>org.mockito</groupId>
             <artifactId>mockito-core</artifactId>
-            <version>5.14.2</version>
+            <version>5.23.0</version>
             <scope>test</scope>
         </dependency>
         <!-- Test-only SLF4J binding: the module itself only depends on slf4j-api (transitively,
@@ -94,7 +94,7 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.4.14</version>
+            <version>1.6.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
