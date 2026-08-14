@@ -1,4 +1,26 @@
 {
+  "compilerOptions": {
+    // `include` below pulls in node_modules/cypress, so Cypress's own .d.ts files get
+    // type-checked too — including its optional react/svelte/vue component adapters, whose
+    // peer types (@types/react, svelte, vue) this harness neither has nor should install.
+    // Without this, tsc reports dozens of TS2307/TS7016 errors from inside node_modules and
+    // buries any real problem in the specs.
+    "skipLibCheck": true,
+    // These specs are CommonJS: they use webpack's inline-loader require syntax
+    // (`require('graphql-tag/loader!../fixtures/...')`), which the @cypress/webpack-preprocessor
+    // resolves at bundle time. TypeScript 6 defaults to ESM module semantics, where `require` is
+    // not a global, so every one of those calls reported TS2591 ("Cannot find name 'require'")
+    // even though @types/node is installed. Declaring the module system the code actually uses
+    // restores it.
+    // These specs are CommonJS: they use webpack's inline-loader require syntax
+    // (`require('graphql-tag/loader!../fixtures/...')`), resolved at bundle time by
+    // @cypress/webpack-preprocessor. TypeScript 6 no longer pulls in @types/node's globals
+    // implicitly here, so every such call reported TS2591 ("Cannot find name 'require'")
+    // despite @types/node being installed. Naming the type packages explicitly restores the
+    // `require` global without resorting to moduleResolution:"node", which TS 6 deprecates
+    // and TS 7 removes.
+    "types": ["cypress", "node"]
+  },
   "include": [
     "node_modules/cypress",
     "cypress/*/*.ts"
