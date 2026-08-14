@@ -1,6 +1,7 @@
 {
   "name": "@jahia/clamav-filter",
   "version": "1.0.0-SNAPSHOT",
+  "packageManager": "yarn@1.22.22",
   "scripts": {
     "build": "yarn webpack",
     "webpack": "webpack",

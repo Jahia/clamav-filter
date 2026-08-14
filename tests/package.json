@@ -1,6 +1,7 @@
 {
   "name": "clamav-filter-cypress",
   "version": "1.0.0",
+  "packageManager": "yarn@1.22.22",
   "description": "Cypress tests for the Jahia ClamAV Filter module",
   "devDependencies": {
     "@apollo/client": "^3.14.0",
