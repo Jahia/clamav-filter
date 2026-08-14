@@ -97,10 +97,14 @@ updates:
         applies-to: security-updates
         patterns: ["*"]
     ignore:
-      # Platform-coupled: these define which Jahia release the module targets, not a library
-      # choice. graphql-dxm-provider is `provided` scope, so compiling against a newer API
-      # than the customer's runtime risks NoSuchMethodError on their instance. Bump these
-      # only as a deliberate decision about the supported Jahia floor, together with the
-      # parent pom and a matching e2e run — never via an automated dependency PR.
-      - dependency-name: "org.jahia.modules:jahia-modules"
+      # graphql-dxm-provider is `provided` scope: compiling against a newer API than the
+      # customer's runtime risks NoSuchMethodError on their instance. Bump it deliberately,
+      # alongside a parent bump and a matching e2e run — not via an automated PR.
+      #
+      # The jahia-modules parent is deliberately NOT ignored: tracking the Jahia baseline is
+      # wanted, and the pom now absorbs the two things a parent bump breaks (the compiler
+      # release override and the pinned Surefire). Review each parent PR against AGENTS.md
+      # "Key Facts" — in particular, diff the bundle's Import-Package header against the
+      # previous release, because bnd derives those ranges from the build classpath and a
+      # narrowed range stops the module resolving on older Jahia instances.
       - dependency-name: "org.jahia.modules:graphql-dxm-provider"

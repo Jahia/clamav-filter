@@ -4,8 +4,25 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 
 ## Key Facts
 
-- **artifactId**: `clamav-filter` | **version**: `1.0.4-SNAPSHOT` | parent: `jahia-modules` `8.2.1.0`
-- **Java**: builds and targets **Java 17** (`maven.compiler.release=17`; also required by the SonarQube scanner)
+- **artifactId**: `clamav-filter` | **version**: `1.0.5-SNAPSHOT` | parent: `jahia-modules` `8.2.3.2`
+- **Java**: builds and targets **Java 17**. The `maven.compiler.release` property alone is **not**
+  enough under this parent: it sets `<release>11</release>` inside the `default-compile` /
+  `default-testCompile` *execution* configs, and execution-level config beats properties. The pom
+  therefore overrides both execution ids explicitly — remove that and the build silently drops to
+  `-source 11` and fails on the pattern-matching `instanceof` in `ClamavFilter.sendError`.
+  Consequence: the bundle is Java 17 bytecode and needs a JDK 17 Jahia; it will not load on JDK 11.
+  (The SonarQube scanner needs a Java 17+ *runtime* for Maven — that is unrelated to the bytecode
+  target, and does not by itself require `release=17`.)
+- **Surefire**: pinned to `3.5.4` in this pom. The parent declares `2.22.2` (2019), which discovers
+  **zero** JUnit 5 tests and still reports `BUILD SUCCESS` — a green build that verifies nothing.
+  The `surefire.plugin.version` property says `2.22.2` in both parents and is misleading; the
+  build-section declaration is what applies (8.2.1.0 declared `3.6.0-M1`). Guard: `mvn test` must
+  report **129** tests, never 0. This also caps `junit-jupiter` at the 5.x line — see the pom comment.
+- **OSGi import ranges**: bnd derives them from the build classpath, so a parent bump can silently
+  narrow them and break resolution on older Jahia instances. The 8.2.3.2 parent brought
+  commons-fileupload 1.6 and narrowed that import to `[1.6,2)`; the pom pins it back to `[1.3,2)`
+  (only `ServletFileUpload.isMultipartContent()` is used, unchanged across 1.x). Diff the
+  `Import-Package` header against the previous release after any parent bump.
 - **Java package**: `org.jahia.community.clamav`
 - **jahia-depends**: `default,graphql-dxm-provider` (graphql-dxm-provider 3.4.0)
 - **No Blueprint/Spring** — pure OSGi DS (`_dsannotations` in maven-bundle-plugin); config via `ConfigurationAdmin` + `ManagedService` (PID `org.jahia.community.clamav`)
