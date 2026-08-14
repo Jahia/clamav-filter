@@ -37,15 +37,15 @@
  *     detection.
  */
 describe('ClamAV Filter — raw-binary / PUT upload scanning (SEC-141, U1/D2)', () => {
-    const jcrRestBase = '/modules/api/jcr/v1/default/en';
-    const targetPath = '/users/root';
+    const jcrRestBase = '/modules/api/jcr/v1/default/en'
+    const targetPath = '/users/root'
     // The "jcr:title" property name becomes "jcr__title" per the REST API's ":" -> "__" encoding rule.
-    const propertyName = 'jcr__title';
+    const propertyName = 'jcr__title'
 
-    let propertySelfHref: string;
+    let propertySelfHref: string
 
     before(() => {
-        cy.login();
+        cy.login()
 
         // Preflight: resolve /users/root's own REST self-link. A non-2xx here signals a
         // security-filter/provisioning gap (see note 1 above), not a clamav-filter behavior —
@@ -53,51 +53,51 @@ describe('ClamAV Filter — raw-binary / PUT upload scanning (SEC-141, U1/D2)', 
         cy.request({
             method: 'GET',
             url: jcrRestBase + '/paths' + targetPath,
-            failOnStatusCode: false
-        }).then(response => {
+            failOnStatusCode: false,
+        }).then((response) => {
             expect(
                 response.status,
                 'JCR-REST preflight GET on ' +
                     targetPath +
-                    ' (403/404 here means a security-filter/provisioning gap, not a clamav-filter block)'
-            ).to.eq(200);
+                    ' (403/404 here means a security-filter/provisioning gap, not a clamav-filter block)',
+            ).to.eq(200)
             const selfHref =
-                response.body && response.body._links && response.body._links.self ?
-                    response.body._links.self.href :
-                    undefined;
-            expect(selfHref, 'HAL self link on the JCR-REST node response').to.be.a('string');
-            propertySelfHref = selfHref + '/properties/' + propertyName;
-        });
-    });
+                response.body && response.body._links && response.body._links.self
+                    ? response.body._links.self.href
+                    : undefined
+            expect(selfHref, 'HAL self link on the JCR-REST node response').to.be.a('string')
+            propertySelfHref = selfHref + '/properties/' + propertyName
+        })
+    })
 
     it('a clean raw PUT reaches the JCR-REST handler (not blocked by ClamavFilter)', () => {
         cy.request({
             method: 'PUT',
             url: propertySelfHref,
             body: 'clean raw-binary PUT content, no threats',
-            headers: {'Content-Type': 'text/plain'},
-            failOnStatusCode: false
-        }).then(response => {
+            headers: { 'Content-Type': 'text/plain' },
+            failOnStatusCode: false,
+        }).then((response) => {
             // The filter itself never returns 403 for clean content; whatever the JCR-REST handler's
             // own success/validation status is, it must not be the filter's infected-rejection code.
-            expect(response.status, 'clean content must not be blocked by ClamavFilter').to.not.eq(403);
-        });
-    });
+            expect(response.status, 'clean content must not be blocked by ClamavFilter').to.not.eq(403)
+        })
+    })
 
     it('a PUT carrying EICAR content is intercepted and rejected with 403 by ClamavFilter', () => {
         // Raw EICAR bytes, unescaped — see note 3 above.
-        const eicar = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*';
+        const eicar = 'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
         cy.request({
             method: 'PUT',
             url: propertySelfHref,
             body: eicar,
-            headers: {'Content-Type': 'text/plain'},
-            failOnStatusCode: false
-        }).then(response => {
+            headers: { 'Content-Type': 'text/plain' },
+            failOnStatusCode: false,
+        }).then((response) => {
             expect(
                 response.status,
-                'EICAR content must be intercepted by ClamavFilter before reaching the JCR-REST handler'
-            ).to.eq(403);
-        });
-    });
-});
+                'EICAR content must be intercepted by ClamavFilter before reaching the JCR-REST handler',
+            ).to.eq(403)
+        })
+    })
+})
