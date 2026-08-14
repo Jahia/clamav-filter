@@ -26,8 +26,17 @@ describe('ClamAV Filter — permission enforcement', () => {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const getSettings: DocumentNode = require('graphql-tag/loader!../fixtures/graphql/query/getSettings.graphql')
 
-    const errorsOf = (result: { graphQLErrors?: Array<{ message: string }>; errors?: Array<{ message: string }> }) =>
-        result.graphQLErrors ?? result.errors ?? []
+    // `cy.apollo` yields ApolloQueryResult | FetchResult, and a permission denial surfaces as
+    // `graphQLErrors` (Apollo client error) or `errors` (raw GraphQL response) depending on the
+    // path. Narrowing from `unknown` covers both without annotating the callbacks below as
+    // `never`, which current Cypress/Apollo typings reject outright.
+    const errorsOf = (result: unknown): ReadonlyArray<{ message: string }> => {
+        const r = result as {
+            graphQLErrors?: ReadonlyArray<{ message: string }>
+            errors?: ReadonlyArray<{ message: string }>
+        }
+        return r.graphQLErrors ?? r.errors ?? []
+    }
 
     const querySettingsAs = (username: string) => {
         cy.apolloClient({ username, password: PASSWORD })
@@ -52,7 +61,7 @@ describe('ClamAV Filter — permission enforcement', () => {
 
     describe('GraphQL API authorization', () => {
         it('denies the gated query for a user without the permission', () => {
-            querySettingsAs(DENIED_USER).then((result: never) => {
+            querySettingsAs(DENIED_USER).then((result) => {
                 const errs = errorsOf(result)
                 expect(errs, 'denial errors').to.have.length.greaterThan(0)
                 expect(errs.map((e: { message: string }) => e.message).join(' ')).to.contain('Permission denied')
@@ -60,10 +69,11 @@ describe('ClamAV Filter — permission enforcement', () => {
         })
 
         it('allows the gated query for a user granted only the module permission', () => {
-            querySettingsAs(ALLOWED_USER).then((result: never) => {
+            querySettingsAs(ALLOWED_USER).then((result) => {
                 expect(errorsOf(result), 'should have no errors').to.have.length(0)
-                const settings = (result as { data: { clamav: { settings: { host: string; port: number } } } }).data
-                    .clamav.settings
+                const settings = (
+                    result as unknown as { data: { clamav: { settings: { host: string; port: number } } } }
+                ).data.clamav.settings
                 expect(settings).to.have.property('host')
                 expect(settings).to.have.property('port')
             })
