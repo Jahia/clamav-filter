@@ -42,8 +42,8 @@ The UI allows editing all four settings, saving them, and testing the connection
 ## How it works
 
 1. When a file is uploaded through Jahia, the filter intercepts the request. Two upload shapes are scanned:
-   - Standard `multipart/form-data` uploads (Media Manager, Spring Webflow, etc.). Scanning is **not** conditional on any client-supplied request parameter, so it cannot be disabled by the uploader.
-   - Jahia Forms file uploads posted as `application/octet-stream` to `/modules/forms/live/fileupload`.
+   - Standard `multipart/form-data` uploads (Media Manager, Spring Webflow, etc.). Every uploaded part is scanned, including multiple files posted under the same field name. Scanning is **not** conditional on any client-supplied request parameter, so it cannot be disabled by the uploader.
+   - Raw (non-multipart) binary bodies: any request with an `application/octet-stream` content type — which covers Jahia Forms uploads to `/modules/forms/live/fileupload` — and any `PUT` carrying a body, which covers WebDAV and raw-body JCR REST binary writes.
 2. The request body is buffered (capped at 100 MB) and forwarded to the ClamAV daemon over TCP using the `INSTREAM` command. The wrapped request is forwarded downstream so the bytes scanned are the bytes consumed by Jahia (no TOCTOU gap).
 3. Responses:
    - Threat detected → **HTTP 403 Forbidden**, signature logged.
@@ -52,7 +52,7 @@ The UI allows editing all four settings, saving them, and testing the connection
 
 ## Security considerations
 
-- **Upload coverage.** Only `multipart/form-data` requests and the Jahia Forms octet-stream endpoint are scanned. Other content-ingestion routes (e.g. WebDAV `PUT`, raw-body JCR REST uploads) are **not** intercepted by this filter; defend those separately if your deployment exposes them.
+- **Upload coverage.** `multipart/form-data` requests, any `application/octet-stream` body, and any `PUT` carrying a body are scanned — so WebDAV and raw-body JCR REST binary writes are covered. Requests that carry no binary body (`GET`, JSON/GraphQL `POST`, form-encoded `POST`) pass through untouched, as does any ingestion path that does not traverse this servlet filter (for example content pushed by server-side code, imports, or provisioning). Defend those separately if your deployment exposes them.
 - **Memory ceiling.** Each in-flight upload is buffered in heap up to the 100 MB cap. The per-instance memory exposure is roughly *(cap × max concurrent uploads)* — size the JVM heap and any upstream upload-size / concurrency limits accordingly, and ensure this filter runs only for authenticated upload flows.
 - **Outbound connection primitive.** The configurable `host`/`port` is used to open a raw TCP socket from the Jahia server. Because the daemon normally runs on `localhost` or a private network, the module does **not** block private/loopback/link-local targets. Treat the `clamavAdmin` permission that guards the settings and test endpoints as granting a server-side outbound-connection capability, and restrict it accordingly. The module ships an assignable `clamav-filter-administrator` role granting only `administrationAccess` + `clamavAdmin`, so this capability can be delegated without granting full server `admin`.
 
