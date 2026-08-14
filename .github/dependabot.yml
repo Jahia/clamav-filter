@@ -30,6 +30,31 @@ updates:
       npm-root-security:
         applies-to: security-updates
         patterns: ["*"]
+    ignore:
+      # Module Federation shared singletons. webpack.config.js feeds package.json to
+      # getModuleFederationConfig, so each of these declared ranges becomes a RUNTIME
+      # requirement against whatever the Jahia app-shell provides. A webpack build cannot
+      # detect a mismatch — it only surfaces at runtime in Jahia — so these must track the
+      # target Jahia version and be bumped deliberately, never by a routine dependency PR.
+      # Only majors are ignored: a CVE fix normally lands as minor/patch inside the current
+      # major, and those still come through (an `ignore` rule suppresses security updates too).
+      - dependency-name: "graphql"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@jahia/moonstone"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@jahia/ui-extender"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@apollo/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      # Babel 8 cannot land alone: @babel/preset-env, @babel/preset-react and babel-jest all
+      # peer-depend on @babel/core ^7, and the resolutions entry pins ^7.29.6. Moving to 8
+      # means moving all of them together as one deliberate change.
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
 
   # Cypress end-to-end harness (tests/), an independent Yarn 1 workspace.
   - package-ecosystem: "npm"
@@ -48,6 +73,10 @@ updates:
       npm-tests-security:
         applies-to: security-updates
         patterns: ["*"]
+    ignore:
+      # Same Babel 8 coupling as the root workspace.
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
 
   # Java/OSGi side. The parent (org.jahia.modules:jahia-modules) governs most
   # versions, so expect a low PR volume here — mostly test-scoped dependencies.
@@ -67,3 +96,11 @@ updates:
       maven-security:
         applies-to: security-updates
         patterns: ["*"]
+    ignore:
+      # Platform-coupled: these define which Jahia release the module targets, not a library
+      # choice. graphql-dxm-provider is `provided` scope, so compiling against a newer API
+      # than the customer's runtime risks NoSuchMethodError on their instance. Bump these
+      # only as a deliberate decision about the supported Jahia floor, together with the
+      # parent pom and a matching e2e run — never via an automated dependency PR.
+      - dependency-name: "org.jahia.modules:jahia-modules"
+      - dependency-name: "org.jahia.modules:graphql-dxm-provider"
