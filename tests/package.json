@@ -17,7 +17,7 @@
     "babel-plugin-istanbul": "^6.1.1",
     "compare-versions": "^6.1.1",
     "cross-fetch": "3.1.6",
-    "cypress": "15.13.1",
+    "cypress": "15.20.1",
     "cypress-file-upload": "^5.0.8",
     "cypress-iframe": "^1.0.1",
     "cypress-multi-reporters": "^1.6.3",
@@ -47,7 +47,7 @@
     "source-map-support": "^0.5.20",
     "supports-color": "^9.0.2",
     "typescript": "^4.4.4",
-    "webpack": "5.104.1"
+    "webpack": "5.109.2"
   },
   "scripts": {
     "e2e:ci": "cypress run",
