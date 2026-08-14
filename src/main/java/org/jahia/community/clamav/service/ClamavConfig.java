@@ -18,7 +18,12 @@ public class ClamavConfig implements ManagedService {
 
     @Override
     public void updated(Dictionary<String, ?> dictionary) throws ConfigurationException {
+        // Per the ManagedService contract, a null dictionary means the configuration was
+        // deleted (e.g. the .cfg file was removed), so revert to the compiled-in defaults.
+        // Keeping the last-known values instead would leave a deleted configuration silently
+        // in force — the operator sees no config yet the module still points at the old host.
         if (dictionary == null) {
+            resetToDefaults();
             return;
         }
         final String newHost = parseString(dictionary, "host", host);
@@ -42,6 +47,13 @@ public class ClamavConfig implements ManagedService {
         this.port = newPort;
         this.connectionTimeout = newConn;
         this.readTimeout = newRead;
+    }
+
+    private void resetToDefaults() {
+        this.host = ClamavConstants.DEFAULT_HOST;
+        this.port = ClamavConstants.DEFAULT_PORT;
+        this.connectionTimeout = ClamavConstants.DEFAULT_CONNECTION_TIMEOUT;
+        this.readTimeout = ClamavConstants.DEFAULT_READ_TIMEOUT;
     }
 
     private static String parseString(Dictionary<String, ?> d, String key, String fallback) {

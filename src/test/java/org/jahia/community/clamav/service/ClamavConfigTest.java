@@ -78,13 +78,36 @@ class ClamavConfigTest {
     }
 
     @Test
-    @DisplayName("a null dictionary is a no-op")
-    void nullDictionaryIsNoOp() {
+    @DisplayName("a null dictionary does not throw and leaves a fresh instance on its defaults")
+    void nullDictionaryDoesNotThrow() {
         final ClamavConfig config = new ClamavConfig();
 
         assertThatCode(() -> config.updated(null)).doesNotThrowAnyException();
 
         assertThat(config.getHost()).isEqualTo(ClamavConstants.DEFAULT_HOST);
+    }
+
+    @Test
+    @DisplayName("a null dictionary on a CONFIGURED instance reverts every field to defaults (ManagedService delete contract)")
+    void nullDictionaryRevertsConfiguredInstanceToDefaults() throws ConfigurationException {
+        // The fresh-instance test above cannot tell "no-op" from "revert" — both leave defaults in
+        // place. This one configures the instance first, so it fails if updated(null) merely returns
+        // and leaves a deleted configuration silently in force.
+        final ClamavConfig config = new ClamavConfig();
+        final Hashtable<String, Object> props = validProps();
+        props.put("host", "clamav.custom");
+        props.put("port", "9999");
+        props.put("connection_timeout", "1234");
+        props.put("read_timeout", "4321");
+        config.updated(props);
+        assertThat(config.getHost()).isEqualTo("clamav.custom");
+
+        config.updated(null);
+
+        assertThat(config.getHost()).isEqualTo(ClamavConstants.DEFAULT_HOST);
+        assertThat(config.getPort()).isEqualTo(ClamavConstants.DEFAULT_PORT);
+        assertThat(config.getConnectionTimeout()).isEqualTo(ClamavConstants.DEFAULT_CONNECTION_TIMEOUT);
+        assertThat(config.getReadTimeout()).isEqualTo(ClamavConstants.DEFAULT_READ_TIMEOUT);
     }
 
     @Test

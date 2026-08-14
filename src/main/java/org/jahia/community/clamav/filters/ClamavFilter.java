@@ -31,8 +31,6 @@ import org.springframework.web.multipart.commons.CommonsMultipartResolver;
 public class ClamavFilter extends AbstractServletFilter {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavFilter.class);
-    @SuppressWarnings("java:S1075")
-    private static final String FORMS_UPLOAD_PATH = "/modules/forms/live/fileupload";
 
     // volatile: written by the OSGi DS bind/unbind thread, read by concurrent servlet request
     // threads in doFilter. The default STATIC reference policy publishes the value before
@@ -103,7 +101,7 @@ public class ClamavFilter extends AbstractServletFilter {
 
         try {
             final MultiReadHttpServletRequest wrapped = new MultiReadHttpServletRequest(httpRequest, ClamavConstants.DEFAULT_MAX_SCAN_BYTES);
-            final ScanOutcome outcome = multipart ? scanMultipart(wrapped) : scanOctetStream(wrapped);
+            final ScanOutcome outcome = multipart ? scanMultipart(wrapped) : scanRawBinary(wrapped);
             switch (outcome) {
                 case CLEAN:
                     chain.doFilter(wrapped, response);
@@ -141,16 +139,6 @@ public class ClamavFilter extends AbstractServletFilter {
             return true;
         }
         return "PUT".equalsIgnoreCase(req.getMethod()) && req.getContentLengthLong() != 0;
-    }
-
-    private static boolean isFormsOctetStreamUpload(HttpServletRequest req) {
-        return isFormsOctetStreamUpload(req.getContentType(), req.getRequestURI());
-    }
-
-    /** True for the Jahia Forms octet-stream upload endpoint. Visible for testing. */
-    static boolean isFormsOctetStreamUpload(String contentType, String uri) {
-        return contentType != null && contentType.startsWith(MediaType.APPLICATION_OCTET_STREAM_VALUE)
-                && uri != null && uri.startsWith(FORMS_UPLOAD_PATH);
     }
 
     /**
@@ -209,8 +197,8 @@ public class ClamavFilter extends AbstractServletFilter {
         return files;
     }
 
-    private ScanOutcome scanOctetStream(MultiReadHttpServletRequest wrapped) throws IOException {
-        LOGGER.debug("Forms upload scan");
+    private ScanOutcome scanRawBinary(MultiReadHttpServletRequest wrapped) throws IOException {
+        LOGGER.debug("Raw binary upload scan");
         final ClamavService service = clamavService;
         if (service == null || !service.ping()) {
             return ScanOutcome.SCANNER_UNAVAILABLE;

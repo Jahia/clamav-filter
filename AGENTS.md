@@ -37,21 +37,34 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 
 ## GraphQL API
 
-| Operation | Name | Notes |
+All operations are nested under a single `clamav` namespace container on `Query` and `Mutation`
+(see the "hierarchical namespace" rule below). There are **no** flat `clamavXxx` root fields —
+`tests/cypress/e2e/04-clamavFilter-SchemaNamespace.cy.ts` asserts they are absent, using the
+`flatPing.graphql` / `flatSettings.graphql` fixtures as negative cases.
+
+| Operation | Path | Notes |
 |-----------|------|-------|
-| Query | `clamavSettings` → `{host, port, connectionTimeout, readTimeout}` | Returns config or defaults if service absent |
-| Query | `clamavPing` → Boolean | Tests socket connection to daemon |
-| Query | `clamavScanTest(content: String!)` → `{status, signature}` | `content` is base64-encoded; `status` values: PASSED/FAILED/ERROR/CONNECTION_FAILED |
-| Mutation | `clamavSaveSettings(host, port, connectionTimeout, readTimeout)` → Boolean | Writes via `ConfigurationAdmin`; all params optional (null → keep current). Validates inputs and returns `false` on rejection. |
+| Query | `clamav { settings }` → `{host, port, connectionTimeout, readTimeout}` | Returns config or defaults if service absent |
+| Query | `clamav { ping }` → Boolean | Tests socket connection to daemon |
+| Query | `clamav { scanTest(content: String!) }` → `{status, signature}` | `content` is base64-encoded; `status` values: PASSED/FAILED/ERROR/CONNECTION_FAILED |
+| Mutation | `clamav { saveSettings(host, port, connectionTimeout, readTimeout) }` → Boolean | Writes via `ConfigurationAdmin`; all params optional (null → keep current). Validates inputs and returns `false` on rejection. |
+
+```graphql
+query { clamav { settings { host port connectionTimeout readTimeout } ping } }
+```
+
+Java-side mapping: `ClamavQueryExtension` / `ClamavMutationExtension` each contribute one
+`@GraphQLField` named `clamav` whose **return type** (`ClamavQuery` / `ClamavMutation`) supplies the
+namespace; the individual operations are `@GraphQLField` instance methods on those types.
 
 All operations require the module-specific `clamavAdmin` permission (resolved on the JCR root node). The module ships an assignable `clamav-filter-administrator` role (`src/main/import/roles.xml`) granting only `administrationAccess` + `clamavAdmin`, so the settings/test endpoints can be delegated without granting full server `admin`.
 
-### `clamavSaveSettings` input validation
+### `clamav { saveSettings }` input validation
 
 - `host`: non-empty, length ≤ 253, character whitelist `[A-Za-z0-9.\-:\[\]]` (rejects path separators, whitespace, scheme injection)
 - `port`: within `[MIN_PORT, MAX_PORT]` (1–65535)
 - `connectionTimeout` / `readTimeout`: `> 0` and `≤ MAX_TIMEOUT_MS` (300 000 ms)
-- `clamavScanTest` rejects base64 input longer than `MAX_BASE64_INPUT_CHARS` (140 M chars)
+- `clamav { scanTest }` rejects base64 input longer than `MAX_BASE64_INPUT_CHARS` (140 M chars)
 
 ## OSGi Configuration
 
@@ -99,6 +112,6 @@ yarn install
 - The filter forwards the **wrapped** request to the chain — downstream code consumes the same buffered bytes that were scanned. Removing the wrapper would reopen a TOCTOU gap.
 - Request bodies above `DEFAULT_MAX_SCAN_BYTES` (100 MiB) are rejected with `413` before scanning to avoid unauthenticated heap-DoS.
 - Scanner unreachable / `Status.ERROR` is **fail-closed** (`503`). Do not change this without a documented threat-model review.
-- `clamavScanTest` accepts **base64** content (not raw bytes) — Cypress fixtures encode test files with `btoa()`; oversize inputs return `ERROR`.
-- If `ClamavService` is null (e.g. ClamAV unreachable on activation), `clamavPing` returns `false` and `clamavScanTest` returns `CONNECTION_FAILED`.
+- `clamav { scanTest }` accepts **base64** content (not raw bytes) — Cypress fixtures encode test files with `btoa()`; oversize inputs return `ERROR`.
+- If `ClamavService` is null (e.g. ClamAV unreachable on activation), `clamav { ping }` returns `false` and `clamav { scanTest }` returns `CONNECTION_FAILED`.
 - CSS Modules in Cypress: match with `[class*="cf_..."]`
