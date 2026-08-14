@@ -22,8 +22,9 @@ import java.util.Base64;
 public class ClamavQuery {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ClamavQuery.class);
-    // Linked to the domain enum so the GraphQL status string can't silently drift from Status.ERROR.
+    // Linked to the domain enum so the GraphQL status strings can't silently drift from Status.
     private static final String STATUS_ERROR = Status.ERROR.name();
+    private static final String STATUS_CONNECTION_FAILED = Status.CONNECTION_FAILED.name();
 
     @GraphQLField
     @GraphQLName("settings")
@@ -64,7 +65,7 @@ public class ClamavQuery {
         }
         final ClamavService service = BundleUtils.getOsgiService(ClamavService.class, null);
         if (service == null) {
-            return new GqlScanResult("CONNECTION_FAILED", null);
+            return new GqlScanResult(STATUS_CONNECTION_FAILED, null);
         }
         final byte[] bytes;
         try {

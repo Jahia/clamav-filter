@@ -10,6 +10,7 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.regex.Pattern;
 import org.jahia.community.clamav.scan.Result;
 import org.jahia.community.clamav.scan.Status;
 import org.jahia.community.clamav.service.ClamavConfig;
@@ -30,7 +31,15 @@ public class ClamavServiceImpl implements ClamavService {
     private static final String STREAM_PREFIX = "stream:";
     private static final int CHUNK_SIZE = 2048;
     private static final int MAX_REPLY_BYTES = 4096;
-    private ClamavConfig clamavConfig;
+    /** Precompiled: sanitize() runs on every logged daemon reply and error message. */
+    private static final Pattern LOG_CONTROL_CHARS = Pattern.compile("[\\r\\n\\t]");
+
+    // volatile for the same reason as ClamavFilter.clamavService: written by the OSGi DS
+    // bind thread, read by concurrent servlet request threads via scan()/ping().
+    // S3077 (suppressed): an immutable service handle that is only ever reassigned, never
+    // mutated through the reference, so a volatile reference is the correct, sufficient guard.
+    @SuppressWarnings("java:S3077")
+    private volatile ClamavConfig clamavConfig;
 
     @Reference
     public void setConfig(ClamavConfig clamavConfig) {
@@ -120,7 +129,7 @@ public class ClamavServiceImpl implements ClamavService {
         if (s == null) {
             return "";
         }
-        final String cleaned = s.replaceAll("[\\r\\n\\t]", "_");
+        final String cleaned = LOG_CONTROL_CHARS.matcher(s).replaceAll("_");
         return cleaned.length() > 200 ? cleaned.substring(0, 200) + "..." : cleaned;
     }
 

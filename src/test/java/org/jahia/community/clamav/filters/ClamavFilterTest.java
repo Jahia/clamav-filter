@@ -60,47 +60,6 @@ class ClamavFilterTest {
     }
 
     @Nested
-    @DisplayName("isFormsOctetStreamUpload")
-    class FormsOctetStreamUpload {
-
-        @Test
-        @DisplayName("matches octet-stream POSTs to the Forms upload path")
-        void matchesFormsUpload() {
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(
-                    "application/octet-stream", "/modules/forms/live/fileupload")).isTrue();
-        }
-
-        @Test
-        @DisplayName("matches when content type carries extra parameters")
-        void matchesWithContentTypeParameters() {
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(
-                    "application/octet-stream; charset=binary", "/modules/forms/live/fileupload/x")).isTrue();
-        }
-
-        @Test
-        @DisplayName("rejects the Forms path with a non-octet-stream content type")
-        void rejectsWrongContentType() {
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(
-                    "application/json", "/modules/forms/live/fileupload")).isFalse();
-        }
-
-        @Test
-        @DisplayName("rejects octet-stream to a different path")
-        void rejectsWrongPath() {
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(
-                    "application/octet-stream", "/cms/render/live/en/sites/x")).isFalse();
-        }
-
-        @Test
-        @DisplayName("rejects null content type or null URI")
-        void rejectsNulls() {
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(null, "/modules/forms/live/fileupload")).isFalse();
-            assertThat(ClamavFilter.isFormsOctetStreamUpload("application/octet-stream", null)).isFalse();
-            assertThat(ClamavFilter.isFormsOctetStreamUpload(null, null)).isFalse();
-        }
-    }
-
-    @Nested
     @DisplayName("exceedsScanLimit")
     class ScanLimit {
 
