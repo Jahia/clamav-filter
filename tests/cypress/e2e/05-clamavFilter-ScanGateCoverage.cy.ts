@@ -82,7 +82,16 @@ describe('ClamAV Filter — deny-by-default scan gate (SEC-418)', () => {
 
     // --- the deliberate exemptions -----------------------------------------------------------
 
-    const skippedTypes = ['application/json', 'application/x-www-form-urlencoded', 'application/graphql']
+    // text/x-gwt-rpc is the GWT-RPC transport behind jContent / Content Manager / Page Composer.
+    // It is on the exemption list because an earlier run of this very suite proved that scanning it
+    // fail-closes the whole authoring UI (every POST /gwt/*.gwt answered 503) while the daemon is
+    // unreachable.
+    const skippedTypes = [
+        'application/json',
+        'application/x-www-form-urlencoded',
+        'application/graphql',
+        'text/x-gwt-rpc',
+    ]
 
     skippedTypes.forEach((contentType) => {
         it(`passes a ${contentType} body through without scanning it`, () => {

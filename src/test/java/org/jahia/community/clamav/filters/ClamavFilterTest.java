@@ -49,6 +49,8 @@ class ClamavFilterTest {
                 // --- SEC-418 type gap: any declared type could carry a file ------------------
                 "application/pdf,             POST,   100",
                 "text/plain,                  POST,   100",
+                "text/html,                   POST,   100",
+                "text/xml,                    POST,   100",
                 "image/png,                   POST,   100",
                 "application/xml,             POST,   100",
                 // --- a body with no declared Content-Type (bare WebDAV PUT) ------------------
@@ -73,6 +75,11 @@ class ClamavFilterTest {
                 "application/x-www-form-urlencoded,      POST,  512",
                 "'application/x-www-form-urlencoded; charset=UTF-8', POST, 512",
                 "application/graphql,                    POST,  512",
+                // GWT-RPC: jContent / Content Manager / Page Composer. Scanning it fail-closed the
+                // whole authoring UI in an e2e run when the daemon was down.
+                "text/x-gwt-rpc,                         POST,  512",
+                "'text/x-gwt-rpc; charset=utf-8',        POST,  512",
+                "TEXT/X-GWT-RPC,                         POST,  512",
                 "application/ld+json,                    POST,  512",
                 "application/merge-patch+json,           PATCH, 512",
                 // --- no body: nothing to scan -------------------------------------------------

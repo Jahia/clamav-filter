@@ -17,7 +17,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
   **zero** JUnit 5 tests and still reports `BUILD SUCCESS` — a green build that verifies nothing.
   The `surefire.plugin.version` property says `2.22.2` in both parents and is misleading; the
   build-section declaration is what applies (8.2.1.0 declared `3.6.0-M1`). Guard: `mvn test` must
-  report **171** tests, never 0. This also caps `junit-jupiter` at the 5.x line — see the pom comment.
+  report **176** tests, never 0. This also caps `junit-jupiter` at the 5.x line — see the pom comment.
 - **OSGi import ranges**: bnd derives them from the build classpath, so a parent bump can silently
   narrow them and break resolution on older Jahia instances. The 8.2.3.2 parent brought
   commons-fileupload 1.6 and narrowed that import to `[1.6,2)`; the pom pins it back to `[1.3,2)`
@@ -126,7 +126,7 @@ yarn install
 ## Gotchas
 
 - The scan gate is **deny-by-default** and must stay that way. `shouldScan` = "carries a body AND its media type is not on `SKIPPED_MEDIA_TYPES`". Do **not** turn it back into an allow-list of request shapes: SEC-418 is exactly that regression — the SEC-141 predicate enumerated `application/octet-stream` + `PUT`, so a `PATCH`, a case-variant `Application/OCTET-STREAM` and a `POST` declaring `application/pdf` all reached the repository unscanned (reproduced live on 8.2.3.2 and 8.2.4.0-SNAPSHOT).
-- `SKIPPED_MEDIA_TYPES` (`application/json` + any `+json`, `application/x-www-form-urlencoded`, `application/graphql`) is the deliberate exemption list. It exists so a clamd outage does not fail-close Jahia's GraphQL/login traffic — every entry is a hole in the AV, so adding one needs a documented reason. `text/*`, `application/xml` and image/document types are absent on purpose. GraphQL *file* uploads are multipart and stay scanned.
+- `SKIPPED_MEDIA_TYPES` (`application/json` + any `+json`, `application/x-www-form-urlencoded`, `application/graphql`, `text/x-gwt-rpc`) is the deliberate exemption list. `text/x-gwt-rpc` is there because an e2e run measured every `POST /gwt/*.gwt` answering 503 without it — that transport is jContent / Content Manager / Page Composer, so omitting it fail-closes the authoring UI whenever clamd is down. Unit tests cannot catch that class of mistake; only a real Jahia run can. It exists so a clamd outage does not fail-close Jahia's GraphQL/login traffic — every entry is a hole in the AV, so adding one needs a documented reason. `text/plain`, `application/xml` and image/document types are absent on purpose (a raw `PUT` of `text/plain` to JCR-REST is a real upload channel — `03-clamavFilter-RawBinaryUpload.cy.ts` depends on it being scanned). GraphQL *file* uploads are multipart and stay scanned.
 - `mayHaveBody` treats an **unknown** `Content-Length` (`-1`) as a body unless the method is `GET`/`HEAD`. Do not key this on `Transfer-Encoding`: RFC 9113 §8.2.2 forbids that header in HTTP/2, so an h2 streamed upload has neither header and would be waved through. The empty-buffer short-circuit in `scanBody` is the backstop — it also keeps bodyless `OPTIONS`/`POST` off the daemon and out of the 503 path.
 - Media types are compared case-insensitively with parameters stripped (`baseMediaType`, `Locale.ROOT`); HTTP methods are compared case-sensitively. Each RFC requires the opposite of the other — SEC-418 was partly caused by having them backwards.
 - Do **not** reintroduce a skip based on a client-supplied parameter (e.g. `webflowToken`) — it is an attacker-toggleable AV bypass.

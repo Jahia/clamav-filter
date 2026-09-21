@@ -45,16 +45,25 @@ public class ClamavFilter extends AbstractServletFilter {
     private static final Set<String> BODILESS_METHODS = Set.of("GET", "HEAD");
 
     /**
-     * The only media types exempt from scanning: Jahia's own structured-API traffic, which carries
+     * The only media types exempt from scanning: Jahia's own structured-API transports, which carry
      * parsed request data rather than a file. Keep this list short and justified — every entry is a
-     * hole in the antivirus, and anything NOT listed here is scanned. Notably absent on purpose:
-     * {@code text/*}, {@code application/xml} and every image/document type, all of which can carry
-     * a file payload. GraphQL *file* uploads use multipart and are scanned on the multipart path.
+     * hole in the antivirus, and anything NOT listed here is scanned.
+     *
+     * <p>{@code text/x-gwt-rpc} is the GWT-RPC transport behind jContent, Content Manager and Page
+     * Composer. It is here because an e2e run proved its absence fail-closes the whole authoring UI
+     * (every {@code POST /gwt/*.gwt} answered 503) whenever the daemon is unreachable. It is an RPC
+     * envelope, never a file body.
+     *
+     * <p>Notably absent on purpose: {@code text/plain}, {@code application/xml} and every
+     * image/document type, all of which can carry a file payload — a raw {@code PUT} of
+     * {@code text/plain} to the JCR-REST API is a real upload channel and must stay scanned.
+     * GraphQL *file* uploads use multipart and are scanned on the multipart path.
      */
     private static final Set<String> SKIPPED_MEDIA_TYPES = Set.of(
             MediaType.APPLICATION_JSON_VALUE,
             MediaType.APPLICATION_FORM_URLENCODED_VALUE,
-            "application/graphql");
+            "application/graphql",
+            "text/x-gwt-rpc");
 
     // volatile: written by the OSGi DS bind/unbind thread, read by concurrent servlet request
     // threads in doFilter. The default STATIC reference policy publishes the value before
