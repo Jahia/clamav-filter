@@ -20,4 +20,15 @@
   uninstallPreviousVersion: false
 - karafCommand: "log:log 'END - Install clamav-filter dependencies'"
 
+# Point clamav-filter at the `clamav` compose service BEFORE any spec runs. Without this the
+# module keeps its compiled-in default of localhost:3310, where nothing listens, so the filter
+# fail-closes and every scanned request answers 503 instead of the 403 the scanning specs assert.
+# Doing it here rather than relying on 01-clamavFilter.cy.ts's saveSettings mutation removes a
+# cross-spec ordering dependency: 03 and 05 assert scan BEHAVIOUR and must not silently degrade
+# into "the daemon was never configured" when a GraphQL call in an unrelated spec fails.
+- karafCommand: "config:property-set -p org.jahia.community.clamav host clamav"
+- karafCommand: "config:property-set -p org.jahia.community.clamav port 3310"
+- karafCommand: "config:property-set -p org.jahia.community.clamav connection_timeout 5000"
+- karafCommand: "config:property-set -p org.jahia.community.clamav read_timeout 30000"
+
 - karafCommand: "log:log 'END - provisioning'"

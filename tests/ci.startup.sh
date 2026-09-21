@@ -12,4 +12,7 @@ echo " SUPER_USER_PASSWORD: ${SUPER_USER_PASSWORD}"
 
 version=$(node -p "require('./package.json').devDependencies['@jahia/cypress']")
 echo Using @jahia/cypress@$version...
-npx --yes --package @jahia/cypress@$version ci.startup
+# Forward arguments: the upstream CLI takes `notests` to boot Jahia without running the suite,
+# which is the documented local-debug path. Without "$@" that argument is silently dropped and
+# `./ci.startup.sh notests` runs the whole suite anyway.
+npx --yes --package @jahia/cypress@$version ci.startup "$@"
