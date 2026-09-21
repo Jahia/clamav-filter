@@ -1,3 +1,6 @@
+// MUST be first: binds `fetch` before @jahia/cypress pulls in cross-fetch, which captures it
+// detached and makes every cy.apollo() call throw "Illegal invocation". See bindFetch.js.
+import './bindFetch';
 import './commands';
 import addContext from 'mochawesome/addContext';
 import {jsErrorsLogger} from '@jahia/cypress';
