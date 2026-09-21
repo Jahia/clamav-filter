@@ -41,9 +41,10 @@ The UI allows editing all four settings, saving them, and testing the connection
 
 ## How it works
 
-1. When a file is uploaded through Jahia, the filter intercepts the request. Two upload shapes are scanned:
-   - Standard `multipart/form-data` uploads (Media Manager, Spring Webflow, etc.). Every uploaded part is scanned, including multiple files posted under the same field name. Scanning is **not** conditional on any client-supplied request parameter, so it cannot be disabled by the uploader.
-   - Raw (non-multipart) binary bodies: any request with an `application/octet-stream` content type — which covers Jahia Forms uploads to `/modules/forms/live/fileupload` — and any `PUT` carrying a body, which covers WebDAV and raw-body JCR REST binary writes.
+1. When a file is uploaded through Jahia, the filter intercepts the request. The scan gate is **deny-by-default**: every request carrying a body is scanned unless its media type is explicitly exempt.
+   - Standard `multipart/form-data` uploads (Media Manager, Spring Webflow, etc.) are parsed and every uploaded part is scanned, including multiple files posted under the same field name. Scanning is **not** conditional on any client-supplied request parameter, so it cannot be disabled by the uploader.
+   - Every other request body is scanned whole, whatever the HTTP method and whatever the declared content type — `application/octet-stream` (Jahia Forms uploads to `/modules/forms/live/fileupload`), `PUT` bodies (WebDAV and raw-body JCR REST binary writes), and equally a `PATCH`, a `POST` declaring `application/pdf`, or a body with no declared type at all.
+   - The only exemptions are Jahia's own structured-API media types, which carry parsed request data rather than a file: `application/json` (and any `+json` type), `application/x-www-form-urlencoded`, and `application/graphql`. Requests with no body are forwarded without contacting the daemon.
 2. The request body is buffered (capped at 100 MB) and forwarded to the ClamAV daemon over TCP using the `INSTREAM` command. The wrapped request is forwarded downstream so the bytes scanned are the bytes consumed by Jahia (no TOCTOU gap).
 3. Responses:
    - Threat detected → **HTTP 403 Forbidden**, signature logged.
@@ -52,7 +53,7 @@ The UI allows editing all four settings, saving them, and testing the connection
 
 ## Security considerations
 
-- **Upload coverage.** `multipart/form-data` requests, any `application/octet-stream` body, and any `PUT` carrying a body are scanned — so WebDAV and raw-body JCR REST binary writes are covered. Requests that carry no binary body (`GET`, JSON/GraphQL `POST`, form-encoded `POST`) pass through untouched, as does any ingestion path that does not traverse this servlet filter (for example content pushed by server-side code, imports, or provisioning). Defend those separately if your deployment exposes them.
+- **Upload coverage.** The gate is deny-by-default: any request carrying a body is scanned regardless of HTTP method or declared content type. Only `application/json` (and `+json`), `application/x-www-form-urlencoded` and `application/graphql` are exempt, so that a ClamAV outage does not fail-close Jahia's own API and login traffic; GraphQL *file* uploads use multipart and are scanned. Bodies with no content, and `GET`/`HEAD` requests that declare no length, are forwarded untouched. Any ingestion path that does not traverse this servlet filter (content pushed by server-side code, imports, provisioning) is still outside the filter's reach — defend those separately if your deployment exposes them.
 - **Memory ceiling.** Each in-flight upload is buffered in heap up to the 100 MB cap. The per-instance memory exposure is roughly *(cap × max concurrent uploads)* — size the JVM heap and any upstream upload-size / concurrency limits accordingly, and ensure this filter runs only for authenticated upload flows.
 - **Outbound connection primitive.** The configurable `host`/`port` is used to open a raw TCP socket from the Jahia server. Because the daemon normally runs on `localhost` or a private network, the module does **not** block private/loopback/link-local targets. Treat the `clamavAdmin` permission that guards the settings and test endpoints as granting a server-side outbound-connection capability, and restrict it accordingly. The module ships an assignable `clamav-filter-administrator` role granting only `administrationAccess` + `clamavAdmin`, so this capability can be delegated without granting full server `admin`.
 

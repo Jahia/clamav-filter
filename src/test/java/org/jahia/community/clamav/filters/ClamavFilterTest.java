@@ -26,36 +26,95 @@ import static org.mockito.Mockito.when;
 class ClamavFilterTest {
 
     @Nested
-    @DisplayName("isRawBinaryUpload")
-    class RawBinaryUpload {
+    @DisplayName("shouldScan")
+    class ShouldScan {
 
-        @ParameterizedTest(name = "[{index}] contentType={0}, method={1}, contentLength={2} -> {3}")
-        @CsvSource({
-                "application/octet-stream, POST, 1024, true",
-                "'application/octet-stream; charset=binary', POST, 2048, true",
-                "text/plain, PUT, 100, true",
-                "text/plain, PUT, 0, false",
-                "application/json, POST, 512, false"
-        })
-        @DisplayName("classifies octet-stream POSTs and non-empty-body PUTs as raw-binary uploads (SEC-141)")
-        void classifiesRawBinaryUploads(String contentType, String method, long contentLength, boolean expected) {
+        private static HttpServletRequest request(String contentType, String method, long contentLength) {
             final HttpServletRequest request = mock(HttpServletRequest.class);
             when(request.getContentType()).thenReturn(contentType);
             when(request.getMethod()).thenReturn(method);
             when(request.getContentLengthLong()).thenReturn(contentLength);
+            return request;
+        }
 
-            assertThat(ClamavFilter.isRawBinaryUpload(request)).isEqualTo(expected);
+        @ParameterizedTest(name = "[{index}] {1} {0} (len={2}) -> scanned")
+        @CsvSource(nullValues = "NULL", value = {
+                // --- SEC-418 method gap: the old predicate only knew PUT ---------------------
+                "application/pdf,             PATCH,  100",
+                "application/pdf,             DELETE, 100",
+                "image/png,                   PATCH,  100",
+                // --- SEC-418 case gap: media types are case-insensitive (RFC 7231 3.1.1.1) ---
+                "Application/OCTET-STREAM,    POST,   100",
+                "APPLICATION/OCTET-STREAM,    PUT,    100",
+                // --- SEC-418 type gap: any declared type could carry a file ------------------
+                "application/pdf,             POST,   100",
+                "text/plain,                  POST,   100",
+                "image/png,                   POST,   100",
+                "application/xml,             POST,   100",
+                // --- a body with no declared Content-Type (bare WebDAV PUT) ------------------
+                "NULL,                        PUT,    100",
+                "NULL,                        POST,   100",
+                // --- SEC-141 coverage that must not regress ----------------------------------
+                "application/octet-stream,    POST,   1024",
+                "'application/octet-stream; charset=binary', POST, 2048",
+                "text/plain,                  PUT,    100"
+        })
+        @DisplayName("scans any request carrying a body whose media type is not explicitly skippable (SEC-418)")
+        void scansBodyBearingRequests(String contentType, String method, long contentLength) {
+            assertThat(ClamavFilter.shouldScan(request(contentType, method, contentLength))).isTrue();
+        }
+
+        @ParameterizedTest(name = "[{index}] {1} {0} (len={2}) -> skipped")
+        @CsvSource(nullValues = "NULL", value = {
+                // --- the explicit skip-list: Jahia's own structured-API traffic --------------
+                "application/json,                       POST,  512",
+                "'application/json; charset=UTF-8',      POST,  512",
+                "APPLICATION/JSON,                       POST,  512",
+                "application/x-www-form-urlencoded,      POST,  512",
+                "'application/x-www-form-urlencoded; charset=UTF-8', POST, 512",
+                "application/graphql,                    POST,  512",
+                "application/ld+json,                    POST,  512",
+                "application/merge-patch+json,           PATCH, 512",
+                // --- no body: nothing to scan -------------------------------------------------
+                "text/plain,                             PUT,   0",
+                "application/pdf,                        POST,  0",
+                "NULL,                                   GET,   -1",
+                "application/json,                       GET,   -1"
+        })
+        @DisplayName("skips structured-API media types and every request with no body")
+        void skipsSkippableAndBodilessRequests(String contentType, String method, long contentLength) {
+            assertThat(ClamavFilter.shouldScan(request(contentType, method, contentLength))).isFalse();
+        }
+
+        @ParameterizedTest(name = "[{index}] {1} {0} with an unknown length -> scanned")
+        @CsvSource(nullValues = "NULL", value = {
+                "application/pdf, POST",
+                "application/pdf, PATCH",
+                "NULL,            PUT",
+                "NULL,            POST"
+        })
+        @DisplayName("scans an unknown-length body, with no Transfer-Encoding to go on (HTTP/2 forbids it, RFC 9113 8.2.2)")
+        void scansUnknownLengthBody(String contentType, String method) {
+            assertThat(ClamavFilter.shouldScan(request(contentType, method, -1L))).isTrue();
         }
 
         @Test
-        @DisplayName("rejects a GET request regardless of content type")
-        void rejectsGetMethod() {
-            final HttpServletRequest request = mock(HttpServletRequest.class);
-            when(request.getContentType()).thenReturn("application/json");
-            when(request.getMethod()).thenReturn("GET");
-            when(request.getContentLengthLong()).thenReturn(512L);
+        @DisplayName("scans an unknown-length body whose method is unreadable rather than guessing")
+        void scansUnknownLengthBodyWithNullMethod() {
+            assertThat(ClamavFilter.shouldScan(request("application/pdf", null, -1L))).isTrue();
+        }
 
-            assertThat(ClamavFilter.isRawBinaryUpload(request)).isFalse();
+        @Test
+        @DisplayName("skips an unknown-length body whose media type is on the skip-list")
+        void skipsUnknownLengthSkippableBody() {
+            assertThat(ClamavFilter.shouldScan(request("application/json", "POST", -1L))).isFalse();
+        }
+
+        @ParameterizedTest(name = "[{index}] {0} with an unknown length -> skipped")
+        @CsvSource({"GET", "HEAD"})
+        @DisplayName("skips the read-only methods when no body length is declared (no body semantics, bulk of the traffic)")
+        void skipsBodilessMethods(String method) {
+            assertThat(ClamavFilter.shouldScan(request("application/pdf", method, -1L))).isFalse();
         }
     }
 

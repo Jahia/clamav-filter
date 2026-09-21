@@ -17,7 +17,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
   **zero** JUnit 5 tests and still reports `BUILD SUCCESS` — a green build that verifies nothing.
   The `surefire.plugin.version` property says `2.22.2` in both parents and is misleading; the
   build-section declaration is what applies (8.2.1.0 declared `3.6.0-M1`). Guard: `mvn test` must
-  report **129** tests, never 0. This also caps `junit-jupiter` at the 5.x line — see the pom comment.
+  report **171** tests, never 0. This also caps `junit-jupiter` at the 5.x line — see the pom comment.
 - **OSGi import ranges**: bnd derives them from the build classpath, so a parent bump can silently
   narrow them and break resolution on older Jahia instances. The 8.2.3.2 parent brought
   commons-fileupload 1.6 and narrowed that import to `[1.6,2)`; the pom pins it back to `[1.3,2)`
@@ -31,7 +31,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
 
 | Class | Role |
 |-------|------|
-| `ClamavFilter` | Extends Jahia `AbstractServletFilter` (order `0.5f`, matchAllUrls); scopes to **all** multipart uploads (Media Manager, Spring Webflow, etc.) plus every raw binary body — any `application/octet-stream` content type (including Forms uploads at `/modules/forms/live/fileupload`) and any `PUT` with a body (WebDAV / JCR-REST binary writes), per `isRawBinaryUpload`. Scanning is deliberately **not** gated on any client-supplied parameter (a `webflowToken`-based skip was removed — it let an uploader disable scanning). Rejects oversize bodies up front via declared `Content-Length`. Wraps the request in `MultiReadHttpServletRequest`, scans every part, **forwards the wrapped request** to the chain (no TOCTOU gap), fail-closes on scanner unavailability. |
+| `ClamavFilter` | Extends Jahia `AbstractServletFilter` (order `0.5f`, matchAllUrls). The scan gate (`shouldScan`) is **deny-by-default** (SEC-418): every request carrying a body is scanned, whatever the method and declared type, unless its media type is on `SKIPPED_MEDIA_TYPES`. Multipart bodies are parsed and scanned per part; everything else is scanned whole. Scanning is deliberately **not** gated on any client-supplied parameter (a `webflowToken`-based skip was removed — it let an uploader disable scanning). Rejects oversize bodies up front via declared `Content-Length`. Wraps the request in `MultiReadHttpServletRequest`, scans every part, **forwards the wrapped request** to the chain (no TOCTOU gap), fail-closes on scanner unavailability. |
 | `MultiReadHttpServletRequest` | `HttpServletRequestWrapper` that buffers the body once into `byte[]` for replay. Bounded by `maxBytes` constructor arg; throws `RequestTooLargeException` (extends `IOException`) when exceeded. |
 | `ClamavService` | OSGi service interface: `ping()` and `scan(InputStream)` |
 | `ClamavServiceImpl` | Opens socket to ClamAV daemon, implements INSTREAM protocol; bounds reply reads, sanitizes log messages (CRLF strip + truncate), explicit US-ASCII/UTF-8 charsets |
@@ -125,7 +125,11 @@ yarn install
 
 ## Gotchas
 
-- The filter scans all multipart uploads, any `application/octet-stream` body (including Forms uploads to `/modules/forms/live/fileupload`), and any `PUT` carrying a body (WebDAV / JCR-REST). Requests with no binary body (JSON, GraphQL, GETs, form-encoded POSTs) pass through untouched. Do **not** reintroduce a skip based on a client-supplied parameter (e.g. `webflowToken`) — it is an attacker-toggleable AV bypass.
+- The scan gate is **deny-by-default** and must stay that way. `shouldScan` = "carries a body AND its media type is not on `SKIPPED_MEDIA_TYPES`". Do **not** turn it back into an allow-list of request shapes: SEC-418 is exactly that regression — the SEC-141 predicate enumerated `application/octet-stream` + `PUT`, so a `PATCH`, a case-variant `Application/OCTET-STREAM` and a `POST` declaring `application/pdf` all reached the repository unscanned (reproduced live on 8.2.3.2 and 8.2.4.0-SNAPSHOT).
+- `SKIPPED_MEDIA_TYPES` (`application/json` + any `+json`, `application/x-www-form-urlencoded`, `application/graphql`) is the deliberate exemption list. It exists so a clamd outage does not fail-close Jahia's GraphQL/login traffic — every entry is a hole in the AV, so adding one needs a documented reason. `text/*`, `application/xml` and image/document types are absent on purpose. GraphQL *file* uploads are multipart and stay scanned.
+- `mayHaveBody` treats an **unknown** `Content-Length` (`-1`) as a body unless the method is `GET`/`HEAD`. Do not key this on `Transfer-Encoding`: RFC 9113 §8.2.2 forbids that header in HTTP/2, so an h2 streamed upload has neither header and would be waved through. The empty-buffer short-circuit in `scanBody` is the backstop — it also keeps bodyless `OPTIONS`/`POST` off the daemon and out of the 503 path.
+- Media types are compared case-insensitively with parameters stripped (`baseMediaType`, `Locale.ROOT`); HTTP methods are compared case-sensitively. Each RFC requires the opposite of the other — SEC-418 was partly caused by having them backwards.
+- Do **not** reintroduce a skip based on a client-supplied parameter (e.g. `webflowToken`) — it is an attacker-toggleable AV bypass.
 - The filter forwards the **wrapped** request to the chain — downstream code consumes the same buffered bytes that were scanned. Removing the wrapper would reopen a TOCTOU gap.
 - Request bodies above `DEFAULT_MAX_SCAN_BYTES` (100 MiB) are rejected with `413` before scanning to avoid unauthenticated heap-DoS.
 - Scanner unreachable / `Status.ERROR` is **fail-closed** (`503`). Do not change this without a documented threat-model review.

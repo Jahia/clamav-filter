@@ -32,6 +32,18 @@ public class MultiReadHttpServletRequest extends HttpServletRequestWrapper {
         return new CachedServletInputStream(cachedBytes);
     }
 
+    /**
+     * The size in bytes of the buffered body, buffering it on first access exactly as
+     * {@link #getInputStream()} does (including the {@code maxBytes} cap). Lets a caller establish
+     * that there is nothing to scan without materializing a second copy of the body.
+     */
+    public int bufferedLength() throws IOException {
+        if (cachedBytes == null) {
+            cacheInputStream();
+        }
+        return cachedBytes.length;
+    }
+
     @Override
     public BufferedReader getReader() throws IOException {
         return new BufferedReader(new InputStreamReader(getInputStream(), StandardCharsets.UTF_8));

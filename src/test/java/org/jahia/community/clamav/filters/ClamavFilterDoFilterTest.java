@@ -94,6 +94,33 @@ class ClamavFilterDoFilterTest {
         return request;
     }
 
+    /**
+     * An arbitrary non-multipart request: any method, any Content-Type, a real body. Used by the
+     * SEC-418 cases, where the whole point is that neither the verb nor the declared type may decide
+     * whether the antivirus runs.
+     */
+    private static HttpServletRequest bodyRequest(String method, String contentType, byte[] body) throws IOException {
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getMethod()).thenReturn(method);
+        when(request.getContentType()).thenReturn(contentType);
+        when(request.getContentLengthLong()).thenReturn((long) body.length);
+        when(request.getContentLength()).thenReturn(body.length);
+        when(request.getRequestURI()).thenReturn("/cms/render/live/en/sites/test/upload");
+        when(request.getInputStream()).thenReturn(new ByteArrayServletInputStream(body));
+        return request;
+    }
+
+    /** A request that declares no length at all (chunked, or an HTTP/2 streamed body). */
+    private static HttpServletRequest unknownLengthRequest(String method, String contentType, byte[] body) throws IOException {
+        final HttpServletRequest request = mock(HttpServletRequest.class);
+        when(request.getMethod()).thenReturn(method);
+        when(request.getContentType()).thenReturn(contentType);
+        when(request.getContentLengthLong()).thenReturn(-1L);
+        when(request.getRequestURI()).thenReturn("/cms/render/live/en/sites/test/upload");
+        when(request.getInputStream()).thenReturn(new ByteArrayServletInputStream(body));
+        return request;
+    }
+
     /** A request whose declared Content-Length alone exceeds the scan cap: rejected before any buffering. */
     private static HttpServletRequest declaredOversizeRequest() {
         final HttpServletRequest request = mock(HttpServletRequest.class);
@@ -225,6 +252,97 @@ class ClamavFilterDoFilterTest {
             assertThat(forwarded.getValue()).isInstanceOf(MultiReadHttpServletRequest.class);
             assertThat(readAll(((MultiReadHttpServletRequest) forwarded.getValue()).getInputStream())).isEqualTo(fileContent);
             verify(service).scan(any());
+            verify(response, never()).sendError(anyInt());
+        }
+    }
+
+    // --- SEC-418: the scan gate is deny-by-default -------------------------------------------
+
+    @Nested
+    @DisplayName("SEC-418: neither the HTTP verb nor the declared Content-Type can opt out of scanning")
+    class ScanGateCoverage {
+
+        private static final byte[] INFECTED = "pretend-malware".getBytes(StandardCharsets.UTF_8);
+
+        @ParameterizedTest(name = "[{index}] {0} {1} is scanned and blocked")
+        @org.junit.jupiter.params.provider.CsvSource({
+                // The three gaps the fiche reproduced live against 1.0.4, each previously unscanned.
+                "PATCH,  application/pdf",              // method gap: the old predicate only knew PUT
+                "DELETE, application/pdf",              // method gap
+                "POST,   Application/OCTET-STREAM",     // case gap: media types are case-insensitive
+                "POST,   application/pdf",              // type gap: only octet-stream used to count
+                "POST,   text/plain",                   // type gap
+                "POST,   image/png"                     // type gap
+        })
+        @DisplayName("an infected body is intercepted with 403 whatever the verb and declared type")
+        void infectedBodyBlockedRegardlessOfShape(String method, String contentType) throws Exception {
+            final ClamavService service = mockService(true, new Result(Status.FAILED, "FOUND", "Eicar-Test-Signature"));
+            final ClamavFilter filter = filterWith(service);
+            final HttpServletResponse response = mock(HttpServletResponse.class);
+            final FilterChain chain = mock(FilterChain.class);
+
+            filter.doFilter(bodyRequest(method, contentType, INFECTED), response, chain);
+
+            verify(service).scan(any());
+            verify(response).sendError(HttpServletResponse.SC_FORBIDDEN);
+            verify(chain, never()).doFilter(any(), any());
+        }
+
+        @Test
+        @DisplayName("an unknown-length body is scanned too: HTTP/2 sends no Transfer-Encoding to key on")
+        void unknownLengthBodyIsScanned() throws Exception {
+            final ClamavService service = mockService(true, new Result(Status.FAILED, "FOUND", "Eicar-Test-Signature"));
+            final ClamavFilter filter = filterWith(service);
+            final HttpServletResponse response = mock(HttpServletResponse.class);
+            final FilterChain chain = mock(FilterChain.class);
+
+            filter.doFilter(unknownLengthRequest("POST", "application/pdf", INFECTED), response, chain);
+
+            verify(service).scan(any());
+            verify(response).sendError(HttpServletResponse.SC_FORBIDDEN);
+            verify(chain, never()).doFilter(any(), any());
+        }
+
+        @ParameterizedTest(name = "[{index}] {0} passes through unscanned")
+        @org.junit.jupiter.params.provider.ValueSource(strings = {
+                "application/json",
+                "application/json; charset=UTF-8",
+                "APPLICATION/JSON",
+                "application/ld+json",
+                "application/x-www-form-urlencoded",
+                "application/graphql"
+        })
+        @DisplayName("the structured-API skip-list passes through even with no scanner bound (no new 503 blast radius)")
+        void skipListPassesThroughWithoutScanner(String contentType) throws Exception {
+            // No service bound at all: if these shapes were scanned, the fail-closed path would 503 and
+            // take Jahia's own GraphQL/form traffic down with a clamd outage. That is the trade-off this
+            // skip-list buys, so it is pinned here.
+            final ClamavFilter filter = filterWith(null);
+            final HttpServletResponse response = mock(HttpServletResponse.class);
+            final FilterChain chain = mock(FilterChain.class);
+
+            filter.doFilter(bodyRequest("POST", contentType, INFECTED), response, chain);
+
+            verify(chain, times(1)).doFilter(any(), any());
+            verify(response, never()).sendError(anyInt());
+        }
+
+        @Test
+        @DisplayName("a request with no body is forwarded without a daemon round-trip, scanner or not")
+        void emptyBodyNeedsNoScanner() throws Exception {
+            // An unknown-length request that turns out to be empty (an OPTIONS preflight, a bodyless
+            // POST) reaches the scan branch but must short-circuit: there is nothing to scan, so it
+            // must not 503 when the daemon is down.
+            final ClamavService service = mockService(true, new Result(Status.PASSED, "stream: OK"));
+            final ClamavFilter filter = filterWith(service);
+            final HttpServletResponse response = mock(HttpServletResponse.class);
+            final FilterChain chain = mock(FilterChain.class);
+
+            filter.doFilter(unknownLengthRequest("OPTIONS", null, new byte[0]), response, chain);
+
+            verify(service, never()).ping();
+            verify(service, never()).scan(any());
+            verify(chain, times(1)).doFilter(any(), any());
             verify(response, never()).sendError(anyInt());
         }
     }
