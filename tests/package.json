@@ -70,7 +70,7 @@
     "@babel/core": "^7.29.6",
     "@babel/plugin-transform-modules-systemjs": "^7.29.4",
     "axios": "^1.16.0",
-    "fast-uri": "^3.1.5",
+    "fast-uri": "^3.1.8",
     "ip-address": "^10.4.0",
     "qs": "^6.15.3",
     "serialize-javascript": "^7.0.5",
