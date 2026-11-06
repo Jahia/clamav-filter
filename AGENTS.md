@@ -13,7 +13,7 @@ Jahia OSGi module that intercepts file uploads via a servlet filter and scans th
   Consequence: the bundle is Java 17 bytecode and needs a JDK 17 Jahia; it will not load on JDK 11.
   (The SonarQube scanner needs a Java 17+ *runtime* for Maven — that is unrelated to the bytecode
   target, and does not by itself require `release=17`.)
-- **Surefire**: pinned to `3.6.0` in this pom. The parent declares `2.22.2` (2019), which discovers
+- **Surefire**: pinned to `3.6.1` in this pom. The parent declares `2.22.2` (2019), which discovers
   **zero** JUnit 5 tests and still reports `BUILD SUCCESS` — a green build that verifies nothing.
   The `surefire.plugin.version` property says `2.22.2` in both parents and is misleading; the
   build-section declaration is what applies (8.2.1.0 declared `3.6.0-M1`). Guard: `mvn test` must
