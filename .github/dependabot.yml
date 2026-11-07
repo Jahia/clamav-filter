@@ -72,6 +72,13 @@ updates:
       # means moving all of them together as one deliberate change.
       - dependency-name: "@babel/core"
         update-types: ["version-update:semver-major"]
+      # Same coupling for the presets/plugins: Babel 8 presets peer-depend on @babel/core 8
+      # and need Node >= 22.18, so they cannot arrive one PR at a time either.
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
+      # ESLint 10 drops eslintrc support; .eslintrc.js and @jahia/eslint-config 2.x are eslintrc-based.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
 
   # Cypress end-to-end harness (tests/), an independent Yarn 1 workspace.
   - package-ecosystem: "npm"
@@ -136,3 +143,6 @@ updates:
       # version. They are bumped deliberately (with an e2e run and an Import-Package diff, see
       # AGENTS.md "Key Facts"), never by an automated PR.
       - dependency-name: "org.jahia.*"
+      # OSGi spec artifacts (e.g. DS annotations 1.5) raise Require-Capability / Import-Package
+      # floors above what Jahia 8.2 provides (Felix SCR 2.1.30 = DS 1.4).
+      - dependency-name: "org.osgi:*"
