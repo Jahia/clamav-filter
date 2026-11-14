@@ -22,7 +22,7 @@
     "cypress-file-upload": "^5.0.8",
     "cypress-iframe": "^1.0.1",
     "cypress-multi-reporters": "^2.1.0",
-    "cypress-terminal-report": "^5.3.7",
+    "cypress-terminal-report": "^7.4.0",
     "cypress-wait-until": "^3.0.1",
     "dotenv": "^17.4.2",
     "eslint": "^8.51.0",
