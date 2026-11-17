@@ -14,7 +14,7 @@ services:
         networks:
             - stack
     clamav:
-        image: 'clamav/clamav:stable'
+        image: 'clamav/clamav:stable-debian'
         container_name: clamav
         ports:
             - '3310:3310'
