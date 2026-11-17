@@ -63,10 +63,12 @@ The UI allows editing all four settings, saving them, and testing the connection
 Start a local ClamAV daemon with Docker:
 
 ```bash
-docker run --interactive --tty --rm --publish 3310:3310 --name clamav clamav/clamav:stable
+docker run --interactive --tty --rm --publish 3310:3310 --name clamav clamav/clamav:stable-debian
 ```
 
 Wait for the container to print `socket found, clamd started.` before testing.
+
+Use the `-debian` variant of the image. It is published for `linux/amd64`, `linux/arm64` and `linux/ppc64le`. The plain `clamav/clamav:stable` tag is an Alpine build published for `linux/amd64` only, so an ARM machine, such as an Apple silicon Mac, runs it under emulation.
 
 To trigger a detection, use the [EICAR test file](https://www.eicar.org/download-anti-malware-testfile/) — a standard, harmless file that every compliant antivirus engine flags as malware.
 
